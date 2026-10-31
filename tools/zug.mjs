@@ -43,7 +43,10 @@ else if (arg('--stimme')) antwort = await post('/aktion', { fuer: arg('--stimme'
 if (antwort && !antwort.ok) console.log(`ABGELEHNT: ${antwort.fehler}`)
 
 if (arg('--hefte')) {
+  // Die Figuren schreiben nach dem Ende noch (ein Aufruf je Figur) - darauf warten
+  for (let i = 0; i < 40; i++) { const st = await fetch(basis + '/status').then(json); if (!st || st.hefteGeschrieben || st.phase !== 'ende') break; await schlaf(2000) }
   const h = await fetch(basis + '/hefte').then(json)
+  if (!h.fehler && !Object.values(h).some((l) => l.length)) console.log('Noch keine Hefteinträge (die Figuren schreiben noch oder es lief ohne KI).')
   if (h.fehler) console.log(h.fehler)
   else for (const [n, liste] of Object.entries(h)) { const e = liste.at(-1); if (e) console.log(`\n${n}: ${e.eintrag}\n  Vertrauen: ${Object.entries(e.vertrauen || {}).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}`).join(', ') || '-'}`) }
   process.exit(0)
