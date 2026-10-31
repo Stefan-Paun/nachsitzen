@@ -49,13 +49,19 @@ function menschGehirn(name) {
     name,
     abend: async () => { const a = await rede(); return a.art === 'schweigt' ? { art: 'sagt', text: '…', an: null } : a },
     diskussion: rede,
-    nacht: async (sicht, lebende) => {
+    nacht: async (sicht, lebende, { orte }) => {
       const andere = lebende.filter((n) => n !== name)
       const r = p.rollen[name]
+      const platz = await frageName('Wo stellst du dich hin?', orte)
+      if (r !== SCHATTEN && r !== SCHLUESSEL) return { platz }
       const ziel = await frageName(r === SCHATTEN ? 'Wen holst du heute Nacht?' : 'Wen prüfst du heute Nacht?', andere)
-      return { art: r === SCHATTEN ? 'holen' : 'pruefen', ziel }
+      return { platz, ziel }
     },
-    abstimmung: async (sicht, lebende) => ({ art: 'stimme', fuer: await frageName('Wer soll in den Keller?', lebende.filter((n) => n !== name), true), begruendung: '' }),
+    untersuchen: async (sicht, lebende, { orte }) => {
+      const ort = await frageName('Was untersuchst du? (leer = nichts)', orte, true)
+      return ort ? { ort } : null
+    },
+    abstimmung: async (sicht, lebende) => ({ fuer: await frageName('Wer soll in den Keller?', lebende.filter((n) => n !== name), true), begruendung: '' }),
     merkePruefung(ziel, ist) { console.log(`  → Du hast ${ziel} geprüft: ${ist ? 'DER SCHATTEN.' : 'kein Schatten.'}`) },
   }
 }

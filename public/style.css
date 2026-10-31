@@ -54,6 +54,7 @@ body { background: var(--nacht); color: var(--text); font: 16px/1.45 -apple-syst
 .regie.dunkel { color: #c8cbe0; background: #0a0c16; border-style: solid; }
 .regie.schwer { color: var(--text); background: var(--wand); font-weight: 600; }
 .regie.geheim { color: var(--lampe); border-color: var(--lampe); }
+.regie.fund { color: var(--papier); background: #221a2e; border-style: solid; border-color: #4a3b6a; text-align: left; }
 .regie.ende { font-size: 18px; font-weight: 700; color: var(--papier); background: var(--wand); border-color: var(--lampe); }
 .tippt { color: var(--gedaempft); font-size: 14px; padding-left: 50px; min-height: 20px; }
 .tippt i { display: inline-block; width: 6px; height: 6px; margin-left: 3px; border-radius: 50%; background: var(--gedaempft); animation: punkt 1s infinite; }

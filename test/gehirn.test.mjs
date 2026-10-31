@@ -36,7 +36,9 @@ test('Werkzeuge je Phase und Rolle, Namen als enum', () => {
   assert.deepEqual(werkzeuge('diskussion', SCHATTEN, andere).map((t) => t.name), ['sprechen', 'schweigen'])
   assert.deepEqual(werkzeuge('nacht', SCHATTEN, andere).map((t) => t.name), ['holen'])
   assert.deepEqual(werkzeuge('nacht', SCHLUESSEL, andere).map((t) => t.name), ['pruefen'])
-  assert.deepEqual(werkzeuge('nacht', SCHUELER, andere), [])
+  assert.deepEqual(werkzeuge('nacht', SCHUELER, andere).map((t) => t.name), ['verstecken'])
+  assert.deepEqual(werkzeuge('nacht', SCHATTEN, andere)[0].input_schema.required, ['platz', 'ziel'])
+  assert.equal(werkzeuge('nacht', SCHUELER, andere)[0].input_schema.properties.platz.enum.length, 6)
   const ab = werkzeuge('abstimmung', SCHUELER, andere)[0]
   assert.deepEqual(ab.input_schema.properties.fuer.enum, ['Mira', 'Jonas', 'niemand'])
   assert.ok(werkzeuge('nacht', SCHATTEN, andere)[0].strict)
@@ -48,9 +50,11 @@ test('Verlauf als Text: private Zeilen nur in der eigenen Sicht, "Du" statt Name
   P.abendBeenden(p)
   const s = P.schatten(p), k = P.schluesseltraeger(p)
   const opfer = NAMEN.find((n) => n !== s && n !== k)
+  p.lebende.forEach((n, i) => P.platzWaehlen(p, n, P.ORT_NAMEN[i]))
   P.schattenWaehlt(p, opfer); P.schluesselPrueft(p, s); P.morgen(p)
   const tS = verlaufAlsText(P.verlaufFuer(p, s), s), tK = verlaufAlsText(P.verlaufFuer(p, k), k), tO = verlaufAlsText(P.verlaufFuer(p, 'Mira'), 'Mira')
-  assert.ok(tS.includes(`Du gehst zu ${opfer}`)); assert.ok(!tK.includes('Du gehst zu'))
+  assert.ok(tS.includes(`Du schleichst zu ${opfer}`)); assert.ok(!tK.includes('Du schleichst zu'))
+  assert.ok(tK.includes('Du stellst dich') && tK.includes('was du mitbekommen hast') && tK.includes('Fund für alle sichtbar'))
   assert.ok(tK.includes(`Du prüfst ${s}: DER SCHATTEN.`)); assert.ok(!tS.includes('Du prüfst'))
   assert.ok(tO.includes('Du (zu Jonas): Wer war beim Fenster?'))
   assert.ok(tS.includes(`Das Pult von ${opfer} ist leer`))
@@ -89,8 +93,8 @@ test('Claude-Gehirn: Ablehnung, Fehler und falsches Werkzeug fallen harmlos zuru
   const { anfrage } = fakeAnfrage([
     { werkzeug: null, grund: 'refusal', kategorie: 'general_harms' },
     () => { throw new Error('Netz weg') },
-    { werkzeug: { name: 'holen', eingabe: { ziel: 'Mira' } } },       // in der Diskussion nicht erlaubt
-    { werkzeug: { name: 'holen', eingabe: { ziel: 'Lea' } } },        // sich selbst holen geht nicht
+    { werkzeug: { name: 'holen', eingabe: { platz: 'Tür', ziel: 'Mira' } } },   // in der Diskussion nicht erlaubt
+    { werkzeug: { name: 'holen', eingabe: { platz: 'Tür', ziel: 'Lea' } } },    // sich selbst holen geht nicht
     { werkzeug: { name: 'sprechen', eingabe: { text: '', an: null } } },
   ])
   const g = claudeGehirn(ladeFigur('Lea'), SCHATTEN, { anfrage, mitspieler: NAMEN, zufall: zufall(2), log: (m) => log.push(m) })
@@ -99,7 +103,7 @@ test('Claude-Gehirn: Ablehnung, Fehler und falsches Werkzeug fallen harmlos zuru
   assert.deepEqual(await g.diskussion([], lebende), { art: 'schweigt' })
   assert.deepEqual(await g.diskussion([], lebende), { art: 'schweigt' })
   const n = await g.nacht([], lebende)
-  assert.equal(n.art, 'holen'); assert.ok(['Mira', 'Nora'].includes(n.ziel))
+  assert.ok(['Mira', 'Nora'].includes(n.ziel)); assert.ok(P.ORT_NAMEN.includes(n.platz))
   assert.deepEqual(await g.abend([], lebende), { art: 'sagt', text: 'Ist hier noch jemand wach?', an: null })
   assert.equal(log.length, 5)
   assert.ok(log.some((m) => m.includes('refusal')) && log.some((m) => m.includes('Netz weg')))
@@ -108,4 +112,16 @@ test('Claude-Gehirn: Ablehnung, Fehler und falsches Werkzeug fallen harmlos zuru
 test('Nacht-Werkzeuge: Schatten kann sich nicht selbst waehlen (enum ohne eigenen Namen)', () => {
   const t = werkzeuge('nacht', SCHATTEN, ['Mira', 'Nora'])[0]
   assert.ok(!t.input_schema.properties.ziel.enum.includes('Lea'))
+})
+
+test('Claude-Gehirn: echte Nacht-Antwort wird zu Platz und Ziel; Untersuchen braucht keinen API-Aufruf', async () => {
+  let aufrufe = 0
+  const anfrage = async () => { aufrufe++; return { werkzeug: { name: 'pruefen', eingabe: { platz: 'Fenster', ziel: 'Mira' } } } }
+  const g = claudeGehirn(ladeFigur('Nora'), SCHLUESSEL, { anfrage, mitspieler: NAMEN, zufall: zufall(9) })
+  assert.deepEqual(await g.nacht([], ['Nora', 'Mira', 'Lea'], { orte: P.ORT_NAMEN }), { platz: 'Fenster', ziel: 'Mira' })
+  const sicht = [{ art: 'fund', text: 'Kreidestaub an der Tafel, als wäre jemand nur durchgegangen.' }]
+  const ergebnisse = new Set()
+  for (let i = 0; i < 40; i++) { const u = g.untersuchen(sicht, NAMEN, { orte: [...P.ORT_NAMEN, 'Klassenbuch'] }); if (u) ergebnisse.add(u.ort) }
+  assert.ok(ergebnisse.has('Tafel'), 'folgt dem Fund'); assert.ok(ergebnisse.size >= 2)
+  assert.equal(aufrufe, 1)
 })

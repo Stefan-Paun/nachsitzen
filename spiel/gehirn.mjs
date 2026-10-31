@@ -1,12 +1,13 @@
 // Das Claude-Gehirn einer Figur: baut aus Figur, Rolle und dem, was die Figur mitbekommen hat,
 // einen Prompt, laesst Claude genau ein Werkzeug waehlen und prueft die Antwort gegen die Regeln.
-// Dieselbe Schnittstelle wie die Skript-Gehirne (tools/skriptgehirne.mjs): abend/nacht/diskussion/abstimmung.
+// Dieselbe Schnittstelle wie die Skript-Gehirne (siehe spiel/schleife.mjs).
 // Geht etwas schief (Ablehnung, Unsinn, Netz), faellt die Figur auf eine harmlose Aktion zurueck.
 
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SCHATTEN, SCHLUESSEL } from './rollen.mjs'
+import { ORT_NAMEN, KLASSENBUCH, bei } from './welt.mjs'
 
 const HIER = path.dirname(fileURLToPath(import.meta.url))
 const SYSTEM_VORLAGE = fs.readFileSync(path.join(HIER, '..', 'prompts', 'system.md'), 'utf8')
@@ -25,6 +26,7 @@ export function systemPrompt(figur, rolle, mitspieler, spieler) {
     mitspieler: mitspieler.filter((n) => n !== figur.name).join(', '),
     spielerhinweis: spieler && spieler !== figur.name ? `${spieler} ist ein echter Mitschüler und tippt selbst, was er sagt. Behandle ihn genau wie alle anderen.` : '',
     rolle: ROLLEN_TEXTE[rolle],
+    orte: ORT_NAMEN.join(', '),
   }
   return SYSTEM_VORLAGE.replace(/\{\{(\w+)\}\}/g, (_, k) => ersetze[k] ?? '')
 }
@@ -36,10 +38,17 @@ export function verlaufAlsText(ereignisse, ich) {
     switch (e.art) {
       case 'start': zeilen.push(`[Abend] ${e.text}`); break
       case 'nacht': zeilen.push(`[Nacht ${e.nacht}] ${e.text}`); break
-      case 'schatten-waehlt': zeilen.push(`[Nacht ${e.nacht}] Du gehst zu ${e.ziel}.`); break
+      case 'platz': zeilen.push(`[Nacht ${e.nacht}] Du stellst dich ${bei(e.ort)} hin.`); break
+      case 'schatten-waehlt': zeilen.push(`[Nacht ${e.nacht}] Du schleichst zu ${e.ziel} und zurück.`); break
       case 'pruefung': zeilen.push(`[Nacht ${e.nacht}] Du prüfst ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`); break
+      case 'beobachtung': zeilen.push(`[Nacht ${e.nacht}, was du mitbekommen hast] ${e.text}`); break
       case 'verschwunden': zeilen.push(`[Morgen ${e.nacht}] ${e.text}`); break
-      case 'diskussion': zeilen.push(`[Gespräch, Runde ${e.runde}]`); break
+      case 'fund': zeilen.push(`[Morgen ${e.nacht}, Fund für alle sichtbar] ${e.text}`); break
+      case 'zettel': zeilen.push(`[Morgen ${e.nacht}] Ein Zettel liegt unter der Tür, alle lesen ihn: „${e.text}“`); break
+      case 'hausmeister': case 'glocke': zeilen.push(`[Morgen ${e.nacht}] ${e.text}`); break
+      case 'untersucht': zeilen.push(`${e.von === ich ? 'Du untersuchst' : `${e.von} untersucht`} ${e.ort === KLASSENBUCH ? 'das Klassenbuch' : `den Platz ${bei(e.ort)}`}.`); break
+      case 'ergebnis': zeilen.push(`[Nur du weißt das] ${e.text}`); break
+      case 'diskussion': zeilen.push(`[Gespräch, Runde ${e.runde}${e.von ? ` von ${e.von}` : ''}]`); break
       case 'sagt': zeilen.push(`${e.von === ich ? 'Du' : e.von}${e.an ? ` (zu ${e.an === ich ? 'dir' : e.an})` : ''}: ${e.text}`); break
       case 'schweigt': zeilen.push(`${e.von === ich ? 'Du schweigst' : `${e.von} schweigt`}.`); break
       case 'abstimmung': zeilen.push(`[Abstimmung] ${e.text}`); break
@@ -54,34 +63,33 @@ export function verlaufAlsText(ereignisse, ich) {
 
 // --- Werkzeuge je Phase ------------------------------------------------------------------
 
-function namenSchema(namen, beschreibung) {
-  return { type: 'string', enum: namen, description: beschreibung }
-}
+const namenSchema = (namen, beschreibung) => ({ type: 'string', enum: namen, description: beschreibung })
+const platzSchema = { type: 'string', enum: ORT_NAMEN, description: 'Wo du dich heute Nacht hinstellst. Das steht morgen vielleicht in einer Spur.' }
+const objekt = (properties) => ({ type: 'object', additionalProperties: false, required: Object.keys(properties), properties })
 
 export function werkzeuge(phase, rolle, andere) {
   const sprechen = {
     name: 'sprechen', description: 'Etwas sagen, das alle im Raum hören. Höchstens zwei Sätze.', strict: true,
-    input_schema: { type: 'object', additionalProperties: false, required: ['text', 'an'],
-      properties: { text: { type: 'string', description: 'Was du sagst, in deiner Art.' }, an: { anyOf: [{ type: 'string', enum: andere }, { type: 'null' }], description: 'Wen du direkt ansprichst, oder null für alle.' } } },
+    input_schema: objekt({ text: { type: 'string', description: 'Was du sagst, in deiner Art.' }, an: { anyOf: [{ type: 'string', enum: andere }, { type: 'null' }], description: 'Wen du direkt ansprichst, oder null für alle.' } }),
   }
-  const schweigen = { name: 'schweigen', description: 'Nichts sagen, nur zuhören.', strict: true, input_schema: { type: 'object', additionalProperties: false, properties: {} } }
+  const schweigen = { name: 'schweigen', description: 'Nichts sagen, nur zuhören.', strict: true, input_schema: objekt({}) }
   switch (phase) {
     case 'abend': return [sprechen]
     case 'diskussion': return [sprechen, schweigen]
     case 'nacht':
-      if (rolle === SCHATTEN) return [{ name: 'holen', description: 'Diese Person verschwindet heute Nacht.', strict: true, input_schema: { type: 'object', additionalProperties: false, required: ['ziel'], properties: { ziel: namenSchema(andere, 'Wen du holst.') } } }]
-      if (rolle === SCHLUESSEL) return [{ name: 'pruefen', description: 'Diese Person heute Nacht prüfen: Du erfährst, ob sie der Schatten ist.', strict: true, input_schema: { type: 'object', additionalProperties: false, required: ['ziel'], properties: { ziel: namenSchema(andere, 'Wen du prüfst.') } } }]
-      return []
-    case 'abstimmung': return [{ name: 'abstimmen', description: 'Deine Stimme: wer in den Keller soll, oder "niemand".', strict: true, input_schema: { type: 'object', additionalProperties: false, required: ['fuer', 'begruendung'], properties: { fuer: namenSchema([...andere, 'niemand'], 'Dein Kandidat oder niemand.'), begruendung: { type: 'string', description: 'Ein kurzer Satz, warum, laut gesagt und in deinen eigenen Worten (nicht wiederholen, was andere schon begründet haben).' } } } }]
+      if (rolle === SCHATTEN) return [{ name: 'holen', description: 'Deinen Platz wählen und diese Person heute Nacht holen: Sie verschwindet. Dein Weg hinterlässt Spuren.', strict: true, input_schema: objekt({ platz: platzSchema, ziel: namenSchema(andere, 'Wen du holst.') }) }]
+      if (rolle === SCHLUESSEL) return [{ name: 'pruefen', description: 'Deinen Platz wählen und diese Person heute Nacht prüfen: Du erfährst, ob sie der Schatten ist.', strict: true, input_schema: objekt({ platz: platzSchema, ziel: namenSchema(andere, 'Wen du prüfst.') }) }]
+      return [{ name: 'verstecken', description: 'Deinen Platz für die Nacht wählen.', strict: true, input_schema: objekt({ platz: platzSchema }) }]
+    case 'abstimmung': return [{ name: 'abstimmen', description: 'Deine Stimme: wer in den Keller soll, oder "niemand".', strict: true, input_schema: objekt({ fuer: namenSchema([...andere, 'niemand'], 'Dein Kandidat oder niemand.'), begruendung: { type: 'string', description: 'Ein kurzer Satz, warum, laut gesagt und in deinen eigenen Worten (nicht wiederholen, was andere schon begründet haben).' } }) }]
     default: return []
   }
 }
 
 const AUFGABE = {
   abend: 'Es ist Abend, ihr sitzt gerade erst fest. Sag einen Satz, der zu dir passt: ein Gedanke, eine Frage an jemanden, ein Spruch.',
-  nacht: 'Es ist Nacht. Entscheide jetzt heimlich.',
-  diskussion: 'Ihr redet. Du bist dran: Sag etwas (höchstens zwei Sätze, reagiere auf das Letzte) oder schweig.',
-  abstimmung: 'Abstimmung. Wer soll in den Keller? Entscheide anhand dessen, was du gehört hast.',
+  nacht: 'Es ist Nacht. Such dir einen Platz und entscheide heimlich.',
+  diskussion: 'Ihr redet. Du bist dran: Sag etwas (höchstens zwei Sätze, reagiere auf das Letzte, nutze deine Beobachtungen und Funde) oder schweig.',
+  abstimmung: 'Abstimmung. Wer soll in den Keller? Entscheide anhand dessen, was du gesehen und gehört hast.',
 }
 
 // --- Gehirn ---------------------------------------------------------------------------
@@ -96,7 +104,7 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
     const nachricht = `Was du bisher mitbekommen hast:\n${verlaufAlsText(sicht, name)}\n\nNoch im Raum: ${lebende.join(', ')}.\n${AUFGABE[phase]}`
     let erg
     try { erg = await anfrage({ system, nachricht, tools }) } catch (f) { erg = { werkzeug: null, grund: f.message } }
-    const verwerfe = (grund) => { log(`${name}: ${grund}, Rueckfall`); return rueckfall(phase, andere) }
+    const verwerfe = (grund) => { log(`${name}: ${grund}, Rückfall`); return rueckfall(phase, andere) }
     const w = erg.werkzeug
     if (!w || !tools.some((t) => t.name === w.name)) return verwerfe(w ? `Werkzeug ${w.name} nicht erlaubt in ${phase}` : (erg.grund || 'kein Werkzeug'))
     const e = w.eingabe
@@ -107,8 +115,11 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
         return { art: 'sagt', text, an: andere.includes(e.an) ? e.an : null }
       }
       case 'schweigen': return { art: 'schweigt' }
+      case 'verstecken': return ORT_NAMEN.includes(e.platz) ? { platz: e.platz } : verwerfe(`Platz ${e.platz} ungültig`)
       case 'holen':
-      case 'pruefen': return andere.includes(e.ziel) ? { art: w.name, ziel: e.ziel } : verwerfe(`Ziel ${e.ziel} ungueltig`)
+      case 'pruefen':
+        if (!ORT_NAMEN.includes(e.platz)) return verwerfe(`Platz ${e.platz} ungültig`)
+        return andere.includes(e.ziel) ? { platz: e.platz, ziel: e.ziel } : verwerfe(`Ziel ${e.ziel} ungültig`)
       case 'abstimmen': {
         const fuer = andere.includes(e.fuer) ? e.fuer : null
         return { art: 'stimme', fuer, begruendung: String(e.begruendung || '').trim().slice(0, 200) }
@@ -121,16 +132,28 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
     switch (phase) {
       case 'abend': return { art: 'sagt', text: 'Ist hier noch jemand wach?', an: null }
       case 'diskussion': return { art: 'schweigt' }
-      case 'nacht': return { art: rolle === SCHATTEN ? 'holen' : 'pruefen', ziel: zufall.aus(andere) }
+      case 'nacht': return { platz: zufall.aus(ORT_NAMEN), ziel: rolle === SCHATTEN || rolle === SCHLUESSEL ? zufall.aus(andere) : undefined }
       case 'abstimmung': return { art: 'stimme', fuer: null, begruendung: '' }
       default: return { art: 'schweigt' }
     }
+  }
+
+  // Untersuchen kostet keinen API-Aufruf: eine einfache Heuristik entscheidet, was die Figur
+  // sich ansieht. Das Ergebnis landet in ihrem Verlauf, mit dem sie dann redet.
+  function untersuchen(sicht, lebende, { orte }) {
+    if (zufall.zahl() < 0.25) return null
+    const fund = [...sicht].reverse().find((e) => e.art === 'fund')
+    const treffer = fund && ORT_NAMEN.find((o) => fund.text.includes(bei(o)) || fund.text.includes(o))
+    if (treffer && zufall.zahl() < 0.6) return { ort: treffer }
+    if (zufall.zahl() < 0.3) return { ort: KLASSENBUCH }
+    return { ort: zufall.aus(orte.filter((o) => o !== KLASSENBUCH)) }
   }
 
   return {
     name, rolle, system,
     abend: (sicht, lebende) => entscheide('abend', sicht, lebende),
     nacht: (sicht, lebende) => entscheide('nacht', sicht, lebende),
+    untersuchen,
     diskussion: (sicht, lebende) => entscheide('diskussion', sicht, lebende),
     abstimmung: (sicht, lebende) => entscheide('abstimmung', sicht, lebende),
     merkePruefung() {},   // steht im Verlauf (Ereignis 'pruefung'), kein extra Gedaechtnis noetig

@@ -7,20 +7,13 @@ const PHASE = {
   abend: 'Abend. Die Tür ist zu.', nacht: 'Nacht. Die Lampe ist aus.', morgen: 'Morgen.',
   diskussion: 'Ihr redet.', abstimmung: 'Abstimmung: Wer kommt in den Keller?', ergebnis: 'Ergebnis.', ende: 'Ende.',
 }
+const BEI = { 'Tür': 'bei der Tür', 'Schrank': 'beim Schrank', 'Tafel': 'an der Tafel', 'Pult vorne': 'am Pult vorne', 'Pult hinten': 'am Pult hinten', 'Fenster': 'am Fenster' }
 let status = null
 let tippende = new Map()
 let quelle = null
-const avatarCache = new Map()
 
 // --- Pixel-Avatare: 12x14 Raster, aus Hautfarbe, Haarfarbe, Frisur und Shirt -----------
 function avatar(name, look, px = 4) {
-  const key = `${name}|${px}`
-  if (avatarCache.has(key)) return avatarCache.get(key).cloneNode(true) && zeichne(name, look, px)
-  const c = zeichne(name, look, px)
-  avatarCache.set(key, c)
-  return c
-}
-function zeichne(name, look, px) {
   const W = 12, H = 14
   const c = document.createElement('canvas'); c.width = W * px; c.height = H * px
   c.setAttribute('role', 'img'); c.setAttribute('aria-label', name)
@@ -29,14 +22,12 @@ function zeichne(name, look, px) {
   const rect = (x, y, w, h, f) => { g.fillStyle = f; g.fillRect(x * px, y * px, w * px, h * px) }
   const { haut = '#f1cfb0', haar = '#2b2118', frisur = 'kurz', shirt = '#888' } = look || {}
   const dunkler = (hex, k = .75) => { const n = parseInt(hex.slice(1), 16); const f = (v) => Math.round(v * k); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})` }
-  // Koerper
-  rect(3, 10, 6, 4, shirt); rect(2, 11, 1, 3, shirt); rect(9, 11, 1, 3, shirt)
-  rect(5, 9, 2, 1, haut)                       // Hals
-  rect(3, 3, 6, 6, haut)                       // Gesicht
-  dot(4, 5, '#1b1f3a'); dot(7, 5, '#1b1f3a')   // Augen
-  dot(5, 7, dunkler(haut, .8)); dot(6, 7, dunkler(haut, .8))   // Mund
-  // Haare
-  rect(3, 2, 6, 1, haar); rect(2, 3, 1, 2, haar); rect(9, 3, 1, 2, haar)
+  rect(3, 10, 6, 4, shirt); rect(2, 11, 1, 3, shirt); rect(9, 11, 1, 3, shirt)   // Koerper
+  rect(5, 9, 2, 1, haut)                                                        // Hals
+  rect(3, 3, 6, 6, haut)                                                        // Gesicht
+  dot(4, 5, '#1b1f3a'); dot(7, 5, '#1b1f3a')                                    // Augen
+  dot(5, 7, dunkler(haut, .8)); dot(6, 7, dunkler(haut, .8))                    // Mund
+  rect(3, 2, 6, 1, haar); rect(2, 3, 1, 2, haar); rect(9, 3, 1, 2, haar)        // Haare
   if (frisur === 'lang') { rect(2, 3, 1, 7, haar); rect(9, 3, 1, 7, haar); rect(3, 1, 6, 1, haar) }
   if (frisur === 'bob') { rect(2, 3, 1, 5, haar); rect(9, 3, 1, 5, haar); rect(3, 1, 6, 1, haar); rect(3, 3, 6, 1, haar) }
   if (frisur === 'zopf') { rect(3, 1, 6, 1, haar); rect(9, 4, 1, 5, haar); dot(9, 9, haar) }
@@ -78,10 +69,17 @@ function zeigeEreignis(e) {
     case 'start': regie(e.text); break
     case 'rolle': if (e.name === ich) $('meinerolle').textContent = `Deine Rolle: ${ROLLE[e.rolle]}.`; break
     case 'nacht': regie(`Nacht ${e.nacht}. ${e.text}`, 'dunkel'); break
-    case 'schatten-waehlt': regie(`Du gehst zu ${e.ziel}.`, 'geheim'); break
+    case 'platz': regie(`Du stellst dich ${BEI[e.ort] || e.ort} hin.`, 'geheim'); break
+    case 'schatten-waehlt': regie(`Du schleichst zu ${e.ziel} und zurück.`, 'geheim'); break
     case 'pruefung': regie(`Du prüfst ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`, 'geheim'); break
+    case 'beobachtung': regie(`Was du mitbekommen hast: ${e.text}`, 'geheim'); break
     case 'verschwunden': regie(e.text, 'schwer'); break
-    case 'diskussion': regie(`Gespräch, Runde ${e.runde}`); break
+    case 'fund': regie(`Fund: ${e.text}`, 'fund'); break
+    case 'zettel': regie(`Ein Zettel unter der Tür: „${e.text}“`, 'fund'); break
+    case 'hausmeister': case 'glocke': regie(e.text, 'schwer'); break
+    case 'untersucht': blase(e.von, `${e.von === ich ? 'Du untersuchst' : 'untersucht'} ${e.ort === status?.klassenbuch ? 'das Klassenbuch' : `den Platz ${BEI[e.ort] || e.ort}`}.`, { still: true }); break
+    case 'ergebnis': regie(`Nur du weißt das: ${e.text}`, 'geheim'); break
+    case 'diskussion': regie(`Gespräch, Runde ${e.runde}${e.von ? ` von ${e.von}` : ''}`); break
     case 'sagt': blase(e.von, e.text, { an: e.an }); break
     case 'schweigt': blase(e.von, `${e.von === ich ? 'Du schweigst' : `${e.von} schweigt`}.`, { still: true }); break
     case 'abstimmung': regie(e.text, 'schwer'); break
@@ -133,14 +131,29 @@ function zeigeWarte(w) {
     for (const n of w.andere) { const o = document.createElement('option'); o.value = n; o.textContent = `zu ${n}`; an.appendChild(o) }
     $('schweigen').hidden = w.pflicht
     sagen.hidden = false; $('text').focus()
-  } else {
-    hinweis.textContent = { holen: 'Nacht. Wen holst du?', pruefen: 'Nacht. Wen prüfst du?', stimme: 'Wer soll in den Keller?' }[w.art]
-    for (const n of w.optionen) knopf(wahl, n, () => sende(w.art === 'stimme' ? { fuer: n } : { ziel: n }))
-    if (w.art === 'stimme') knopf(wahl, 'niemand', () => sende({ fuer: null }))
-    wahl.hidden = false
+    return
+  }
+  wahl.hidden = false
+  if (w.art === 'nacht') {
+    // Erst den Platz, dann (Schatten/Schluesseltraeger) das Ziel
+    hinweis.textContent = 'Nacht. Wo stellst du dich hin?'
+    for (const o of w.orte) knopf(wahl, o, () => {
+      if (w.aufgabe === 'verstecken') return sende({ platz: o })
+      wahl.innerHTML = ''
+      hinweis.textContent = `Du stehst ${BEI[o] || o}. ${w.aufgabe === 'holen' ? 'Wen holst du?' : 'Wen prüfst du?'}`
+      for (const n of w.optionen) knopf(wahl, n, () => sende({ platz: o, ziel: n }))
+    })
+  } else if (w.art === 'untersuchen') {
+    hinweis.textContent = 'Du darfst heute einen Platz oder das Klassenbuch untersuchen. Alle sehen, was du dir ansiehst, nur du siehst das Ergebnis.'
+    for (const o of w.orte) knopf(wahl, o, () => sende({ ort: o }))
+    knopf(wahl, 'Nichts untersuchen', () => sende({ ort: null }), 'leise')
+  } else if (w.art === 'stimme') {
+    hinweis.textContent = 'Wer soll in den Keller?'
+    for (const n of w.optionen) knopf(wahl, n, () => sende({ fuer: n }))
+    knopf(wahl, 'niemand', () => sende({ fuer: null }), 'leise')
   }
 }
-function knopf(wo, text, tu) { const b = document.createElement('button'); b.className = 'knopf'; b.type = 'button'; b.textContent = text; b.onclick = tu; wo.appendChild(b) }
+function knopf(wo, text, tu, extra = '') { const b = document.createElement('button'); b.className = `knopf ${extra}`; b.type = 'button'; b.textContent = text; b.onclick = tu; wo.appendChild(b) }
 
 async function sende(aktion) {
   for (const b of document.querySelectorAll('#eingabe button')) b.disabled = true

@@ -1,12 +1,14 @@
 // Eine Partie: Phasen, Ereignisse und wer was mitbekommt. Reine Logik, kein Netz, keine KI.
 // Jedes Ereignis traegt `sichtbar`: die Namen, die es sehen duerfen. Daraus baut der Server
-// spaeter den Gespraechsverlauf jeder einzelnen Figur (jede hat ihren eigenen Kontext).
+// den Gespraechsverlauf jeder einzelnen Figur (jede hat ihren eigenen Kontext).
+// Seit M2.5 gibt es eine echte Nacht: Plaetze, Beobachtungen, Funde, Untersuchungen, Tagesereignisse.
 
 import { verteileRollen, SCHATTEN, SCHLUESSEL } from './rollen.mjs'
 import { auswerten } from './abstimmung.mjs'
+import { ORT_NAMEN, KLASSENBUCH, istOrt, beobachtungen, funde, tagesereignis, untersuchung } from './welt.mjs'
 
 export const PHASEN = ['abend', 'nacht', 'morgen', 'diskussion', 'abstimmung', 'ergebnis', 'ende']
-export const SPRECHRUNDEN = 3        // Diskussionsrunden pro Tag
+export const SPRECHRUNDEN = 2        // Diskussionsrunden pro Tag (Hausmeister: 1)
 export const MAX_NAECHTE = 10        // Notbremse gegen Endlosschleifen
 
 export function neuePartie(namen, zufall, { spieler = null } = {}) {
@@ -21,13 +23,19 @@ export function neuePartie(namen, zufall, { spieler = null } = {}) {
     phase: 'abend',
     nacht: 0,
     runde: 0,                         // Sprechrunde innerhalb der Diskussion
+    rundenHeute: SPRECHRUNDEN,
+    plaetze: {},                      // Nacht: name -> Ort
     nachtwahl: null,                  // Ziel des Schattens in dieser Nacht
     pruefung: null,                   // { wer, ziel, rolle } des Schluesseltraegers
+    letzteNacht: null,                // { plaetze, schatten, opfer } fuer Untersuchungen am Tag
+    untersucht: [],                   // wer heute schon untersucht hat
+    geheimeAbstimmung: false,
     stimmen: {},
     ereignisse: [],
     sieger: null,                     // 'schueler' | 'schatten' | null
+    zufall,
   }
-  melde(p, 'start', { text: 'Die Tuer faellt ins Schloss. Sechs Pulte, eine Lampe.' })
+  melde(p, 'start', { text: 'Die Tür fällt ins Schloss. Sechs Pulte, eine Lampe.' })
   for (const name of namen) melde(p, 'rolle', { name, rolle: rollen[name] }, [name])
   return p
 }
@@ -50,10 +58,10 @@ function pruefePhase(p, ...erlaubt) {
   if (!erlaubt.includes(p.phase)) throw new Error(`Nicht erlaubt in Phase "${p.phase}" (erwartet: ${erlaubt.join('/')})`)
 }
 
-// --- Sprechen (Abend und Diskussion) -----------------------------------------------------
+// --- Sprechen (Abend, Diskussion, laute Begruendung bei der Abstimmung) ------------------
 
 export function sprechen(p, von, text, an = null) {
-  pruefePhase(p, 'abend', 'diskussion', 'abstimmung')   // bei der Abstimmung: die laute Begruendung
+  pruefePhase(p, 'abend', 'diskussion', 'abstimmung')
   if (!lebt(p, von)) throw new Error(`${von} ist nicht im Raum`)
   if (an && !lebt(p, an)) throw new Error(`${an} ist nicht im Raum`)
   melde(p, 'sagt', { von, an, text }, [...p.lebende])
@@ -64,7 +72,7 @@ export function schweigen(p, von) {
   melde(p, 'schweigt', { von }, [...p.lebende])
 }
 
-// --- Phasenwechsel -----------------------------------------------------------------------
+// --- Nacht -------------------------------------------------------------------------------
 
 export function abendBeenden(p) {
   pruefePhase(p, 'abend')
@@ -74,18 +82,31 @@ export function abendBeenden(p) {
 function nachtBeginnen(p) {
   p.nacht += 1
   p.phase = 'nacht'
+  p.plaetze = {}
   p.nachtwahl = null
   p.pruefung = null
   p.stimmen = {}
-  melde(p, 'nacht', { text: 'Die Lampe erlischt.' })
-  if (p.nacht > MAX_NAECHTE) throw new Error('Zu viele Naechte - Spiellogik haengt')
+  p.untersucht = []
+  p.geheimeAbstimmung = false
+  p.rundenHeute = SPRECHRUNDEN
+  melde(p, 'nacht', { text: 'Die Lampe erlischt. Jeder sucht sich einen Platz.' })
+  if (p.nacht > MAX_NAECHTE) throw new Error('Zu viele Nächte - Spiellogik hängt')
+}
+
+// Jede lebende Figur stellt sich nachts irgendwohin. Nur sie selbst weiss, wo.
+export function platzWaehlen(p, wer, ort) {
+  pruefePhase(p, 'nacht')
+  if (!lebt(p, wer)) throw new Error(`${wer} ist nicht im Raum`)
+  if (!istOrt(ort)) throw new Error(`Kein Ort: ${ort}`)
+  p.plaetze[wer] = ort
+  melde(p, 'platz', { wer, ort }, [wer])
 }
 
 export function schattenWaehlt(p, ziel) {
   pruefePhase(p, 'nacht')
   const s = schatten(p)
   if (!lebt(p, s)) throw new Error('Der Schatten ist nicht mehr im Spiel')
-  if (ziel === s || !lebt(p, ziel)) throw new Error(`Ungueltiges Ziel: ${ziel}`)
+  if (ziel === s || !lebt(p, ziel)) throw new Error(`Ungültiges Ziel: ${ziel}`)
   p.nachtwahl = ziel
   melde(p, 'schatten-waehlt', { ziel }, [s])
 }
@@ -93,8 +114,8 @@ export function schattenWaehlt(p, ziel) {
 export function schluesselPrueft(p, ziel) {
   pruefePhase(p, 'nacht')
   const k = schluesseltraeger(p)
-  if (!lebt(p, k)) throw new Error('Der Schluesseltraeger ist nicht mehr im Spiel')
-  if (ziel === k || !lebt(p, ziel)) throw new Error(`Ungueltiges Ziel: ${ziel}`)
+  if (!lebt(p, k)) throw new Error('Der Schlüsselträger ist nicht mehr im Spiel')
+  if (ziel === k || !lebt(p, ziel)) throw new Error(`Ungültiges Ziel: ${ziel}`)
   const rolle = p.rollen[ziel]
   p.pruefung = { wer: k, ziel, rolle }
   melde(p, 'pruefung', { ziel, istSchatten: rolle === SCHATTEN }, [k])
@@ -103,36 +124,67 @@ export function schluesselPrueft(p, ziel) {
 
 export function morgen(p) {
   pruefePhase(p, 'nacht')
-  if (!p.nachtwahl) throw new Error('Der Schatten hat noch nicht gewaehlt')
-  if (lebt(p, schluesseltraeger(p)) && !p.pruefung) throw new Error('Der Schluesseltraeger hat noch nicht geprueft')
-  const weg = p.nachtwahl
-  p.lebende = p.lebende.filter((n) => n !== weg)
-  p.verschwunden.push(weg)
+  if (!p.nachtwahl) throw new Error('Der Schatten hat noch nicht gewählt')
+  if (lebt(p, schluesseltraeger(p)) && !p.pruefung) throw new Error('Der Schlüsselträger hat noch nicht geprüft')
+  const ohnePlatz = p.lebende.filter((n) => !p.plaetze[n])
+  if (ohnePlatz.length) throw new Error(`Ohne Platz: ${ohnePlatz.join(', ')}`)
+  const s = schatten(p), opfer = p.nachtwahl
+  const nacht = { plaetze: { ...p.plaetze }, schatten: s, opfer }
+  p.letzteNacht = nacht
+
+  // Was jeder mitbekommen hat (privat, wahr) - noch bevor das Opfer verschwindet
+  const beob = beobachtungen({ ...nacht, lebende: p.lebende, zufall: p.zufall })
+  for (const [name, zeilen] of Object.entries(beob)) for (const text of zeilen) melde(p, 'beobachtung', { wer: name, text }, [name])
+
+  p.lebende = p.lebende.filter((n) => n !== opfer)
+  p.verschwunden.push(opfer)
   p.phase = 'morgen'
-  melde(p, 'verschwunden', { name: weg, text: `Das Pult von ${weg} ist leer. Ein Tintenfleck, sonst nichts.` })
+  melde(p, 'verschwunden', { name: opfer, text: `Das Pult von ${opfer} ist leer. Ein Tintenfleck, sonst nichts.` })
   if (siegPruefen(p)) return
+  for (const text of funde({ ...nacht, zufall: p.zufall })) melde(p, 'fund', { text })
+  const ereignis = tagesereignis({ ...nacht, zufall: p.zufall })
+  if (ereignis) {
+    melde(p, ereignis.art, { text: ereignis.text })
+    if (ereignis.art === 'hausmeister') p.rundenHeute = 1
+    if (ereignis.art === 'glocke') p.geheimeAbstimmung = true
+  }
   p.phase = 'diskussion'
   p.runde = 1
-  melde(p, 'diskussion', { runde: 1 })
+  melde(p, 'diskussion', { runde: 1, von: p.rundenHeute })
+}
+
+// --- Tag: untersuchen, reden, abstimmen -------------------------------------------------
+
+// Einmal pro Tag darf jede Figur einen Ort oder das Klassenbuch untersuchen (in Runde 1).
+export function untersuchen(p, wer, ort) {
+  pruefePhase(p, 'diskussion')
+  if (!lebt(p, wer)) throw new Error(`${wer} ist nicht im Raum`)
+  if (p.untersucht.includes(wer)) throw new Error(`${wer} hat heute schon untersucht`)
+  if (ort !== KLASSENBUCH && !istOrt(ort)) throw new Error(`Kein Ort: ${ort}`)
+  p.untersucht.push(wer)
+  const text = untersuchung({ ort, ...p.letzteNacht, wer, zufall: p.zufall })
+  melde(p, 'untersucht', { von: wer, ort }, [...p.lebende])
+  melde(p, 'ergebnis', { wer, ort, text }, [wer])
+  return text
 }
 
 export function naechsteRunde(p) {
   pruefePhase(p, 'diskussion')
-  if (p.runde >= SPRECHRUNDEN) {
+  if (p.runde >= p.rundenHeute) {
     p.phase = 'abstimmung'
-    melde(p, 'abstimmung', { text: 'Wer kommt in den Keller?' })
+    melde(p, 'abstimmung', { text: p.geheimeAbstimmung ? 'Wer kommt in den Keller? Jeder stimmt für sich, niemand sieht die Zettel.' : 'Wer kommt in den Keller?', geheim: p.geheimeAbstimmung })
   } else {
     p.runde += 1
-    melde(p, 'diskussion', { runde: p.runde })
+    melde(p, 'diskussion', { runde: p.runde, von: p.rundenHeute })
   }
 }
 
 export function stimme(p, von, fuer) {
   pruefePhase(p, 'abstimmung')
   if (!lebt(p, von)) throw new Error(`${von} ist nicht im Raum`)
-  if (fuer != null && (!lebt(p, fuer) || fuer === von)) throw new Error(`Ungueltige Stimme von ${von} fuer ${fuer}`)
+  if (fuer != null && (!lebt(p, fuer) || fuer === von)) throw new Error(`Ungültige Stimme von ${von} für ${fuer}`)
   p.stimmen[von] = fuer
-  melde(p, 'stimme', { von, fuer }, [...p.lebende])
+  melde(p, 'stimme', { von, fuer }, p.geheimeAbstimmung ? [von] : [...p.lebende])
 }
 
 export function abstimmungSchliessen(p) {
@@ -172,3 +224,5 @@ export function zusammenfassung(p) {
     verschwunden: [...p.verschwunden], keller: [...p.keller], uebrig: [...p.lebende],
   }
 }
+
+export { ORT_NAMEN, KLASSENBUCH }

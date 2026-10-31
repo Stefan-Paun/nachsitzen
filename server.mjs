@@ -15,6 +15,7 @@ import { browserGehirn } from './spiel/browsergehirn.mjs'
 import { claudeAnfrage } from './spiel/claude.mjs'
 import { apiSchluessel } from './spiel/schluessel.mjs'
 import { kostenRechner } from './spiel/kosten.mjs'
+import { ORT_NAMEN, KLASSENBUCH } from './spiel/welt.mjs'
 
 const HIER = path.dirname(fileURLToPath(import.meta.url))
 const OEFFENTLICH = path.join(HIER, 'public')
@@ -35,7 +36,7 @@ export function erstelleServer({ gehirnFabrik, host = '127.0.0.1', port = Number
     verschwunden: spiel.p.verschwunden, spieler: spiel.spieler, zuschauen: spiel.zuschauen, sieger: spiel.p.sieger,
     rolle: spiel.spieler ? spiel.p.rollen[spiel.spieler] : null,
     rollen: spiel.zuschauen || spiel.p.phase === 'ende' ? spiel.p.rollen : null,
-    figuren: spiel.figuren, warte: spiel.mensch?.wartetAuf() ?? null,
+    figuren: spiel.figuren, warte: spiel.mensch?.wartetAuf() ?? null, orte: ORT_NAMEN, klassenbuch: KLASSENBUCH,
   }
   // Zuschauer sehen alles. Der Spieler sieht, was seine Figur sehen darf; ist er verschwunden
   // oder im Keller, schaut er als Geist weiter zu (alles ausser privaten Nacht-Ereignissen).
