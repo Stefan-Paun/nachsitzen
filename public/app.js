@@ -284,6 +284,7 @@ function zeigeKlasse() {
   $('lampe').classList.toggle('aus', status.phase === 'nacht')
   $('neu').hidden = false
   $('heftknopf').hidden = !(status.hefte && status.phase === 'ende')
+  if (status.rolle && !$('meinerolle').textContent) $('meinerolle').textContent = `Deine Rolle: ${ROLLE[status.rolle]}. ${ROLLE_ERKLAERT[status.rolle] || ''}`
 }
 
 // --- Eingabe -------------------------------------------------------------------------

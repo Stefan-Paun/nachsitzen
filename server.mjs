@@ -107,6 +107,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
         verbindungen.add(res)
         req.on('close', () => verbindungen.delete(res))
         if (spiel) {
+          res.write(`event: status\ndata: ${JSON.stringify(status())}\n\n`)   // zuerst, damit der Browser weiss, wer er ist
           for (const e of spiel.p.ereignisse) if (sichtbar(e)) res.write(`event: ereignis\ndata: ${JSON.stringify(fuerBrowser(e))}\n\n`)
           res.write(`event: status\ndata: ${JSON.stringify(status())}\n\n`)
         } else res.write('event: status\ndata: null\n\n')
