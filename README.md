@@ -19,7 +19,7 @@ Ein Spiel im Stil von Werwolf: Die Mitspieler sind Claude-Figuren mit eigenem Wi
 | Abstimmung | Geheim: Jeder schreibt einen Namen auf einen Zettel, aufgedeckt wird erst am Ende. Wer die meisten Stimmen hat, kommt in den Keller, und die Rolle wird bekannt. |
 | Danach | Jede Figur schreibt in ihr Heft, wem sie traut. Beim nächsten Spiel liest sie es wieder. |
 
-In der ersten Nacht holt der Schatten nie den menschlichen Spieler. Danach bist du dran wie alle. Scheidest du aus, schaust du als Geist weiter zu.
+In der ersten Nacht holt der Schatten nie den menschlichen Spieler. Danach bist du dran wie alle. Scheidest du aus, schaust du als Geist weiter zu. Der Schatten darf einmal pro Partie seine Spur verwischen. Am Ende zeigt das Spiel die Wahrheit: alle Rollen und wer in welcher Nacht wo stand.
 
 Begriffe: Die Schule hat sieben **Pulte** (eines je Figur) und vier **Plätze** für die Nacht (Tür, Tafel, Pulte, Fenster). Wer verschwindet, wurde vom Schatten geholt; wer im **Keller** sitzt, wurde eingesperrt.
 

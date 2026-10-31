@@ -1,6 +1,6 @@
 # Nachsitzen
 
-Werwolf-artiges Spiel: Stefan + fünf Claude-Figuren nachts in einer Schule, eine ist der Schatten. Node >= 20, keine Abhängigkeiten, Deutsch im Code. Privates Projekt, Plan in `docs/PLAN.md`.
+Werwolf-artiges Spiel: Stefan + sechs Claude-Figuren (Mira, Jonas, Lea, Tarik, Nora, Sam; Ben ersetzt den Menschen beim Zuschauen) nachts in einer Schule, eine ist der Schatten. Node >= 20, keine Abhängigkeiten, Deutsch im Code. Privates Projekt, Plan in `docs/PLAN.md`.
 
 ## Befehle
 
