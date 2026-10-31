@@ -3,7 +3,7 @@
 // das Claude-Gehirn (siehe spiel/schleife.mjs).
 
 import { SCHATTEN, SCHLUESSEL } from '../spiel/rollen.mjs'
-import { KLASSENBUCH } from '../spiel/welt.mjs'
+import { KLASSENBUCH, bei } from '../spiel/welt.mjs'
 
 // Wie oft hat jemand jemanden beschuldigt? (aus dem, was die Figur hoeren konnte)
 function beschuldigungen(sicht) {
@@ -49,7 +49,7 @@ export function skriptGehirn(name, rolle, zufall) {
       const bekannt = Object.entries(geprueft).find(([n, s]) => s && lebende.includes(n))
       if (bekannt) return { art: 'sagt', an: bekannt[0], text: `Ich habe nachts nachgesehen: ${bekannt[0]} ist der Schatten.` }
       if (zufall.zahl() < 0.4) return { art: 'schweigt' }
-      if (meinPlatz && zufall.zahl() < 0.3) return { art: 'sagt', an: null, text: `Ich war ${rolle === SCHATTEN ? 'beim Schrank' : 'am ' + meinPlatz}, die ganze Nacht.` }
+      if (meinPlatz && zufall.zahl() < 0.3) return { art: 'sagt', an: null, text: `Ich war ${bei(rolle === SCHATTEN ? 'Tür' : meinPlatz)}, die ganze Nacht.` }   // der Skript-Schatten luegt immer 'Tuer'
       const ziel = rolle === SCHATTEN ? zufall.aus(andere) : (Object.entries(beschuldigungen(sicht)).filter(([n]) => andere.includes(n)).sort((a, b) => b[1] - a[1])[0]?.[0] ?? zufall.aus(andere))
       return { art: 'sagt', an: ziel, text: `${ziel}, du warst nicht an deinem Platz.` }
     },

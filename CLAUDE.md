@@ -15,6 +15,7 @@ Werwolf-artiges Spiel: Stefan + fünf Claude-Figuren nachts in einer Schule, ein
 - `spiel/gehirn.mjs`: Claude-Gehirn (Systemprompt aus `prompts/` + `figuren/`, Werkzeuge je Phase, Rückfall bei Unsinn). Gleiche Schnittstelle wie `tools/skriptgehirne.mjs`.
 - `spiel/claude.mjs`: Messages-API per fetch. Haiku 5.5: kein Prefill, keine temperature, `thinking: disabled` + `effort: low`, Refusal ist HTTP 200. Nullable Enums als `anyOf`, nicht `type: [..., 'null']`.
 - `spiel/kosten.mjs`: Tageszähler mit Deckel. `spiel/schleife.mjs`: eine Schleife für alle Gehirne.
+- `spiel/hefte.mjs`: Erinnerung über Partien (JSON je Figur unter `~/.local/share/nachsitzen/hefte/`). Die Hefte enthalten Urteile über Stefan; nie in Logs, Commits oder Screenshots.
 
 ## Regeln
 
