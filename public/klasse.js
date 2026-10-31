@@ -6,7 +6,7 @@ export const B = 320, H = 120
 const WAND_UNTEN = 58
 
 // Zonen fuer die vier Plaetze (x-Mitte, y der Fuesse) und die sechs Pulte
-export const ZONEN = { 'Tür': { x: 28, y: 96 }, 'Tafel': { x: 112, y: 76 }, 'Pulte': { x: 178, y: 104 }, 'Fenster': { x: 276, y: 86 } }
+export const ZONEN = { 'Tür': { x: 40, y: 88 }, 'Tafel': { x: 112, y: 76 }, 'Pulte': { x: 178, y: 104 }, 'Fenster': { x: 276, y: 86 } }   // Tuer-Zone steht rechts neben der Kellerluke
 export const PULTE = [[118, 84], [162, 84], [206, 84], [118, 106], [162, 106], [206, 106]]   // Tischkante links-oben
 const F = { 'Tür': '#3a2f28', 'Tafel': '#1f3a2e', 'Pulte': '#5b4630', 'Fenster': '#1c2440' }
 
