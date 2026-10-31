@@ -125,7 +125,7 @@ function merke(e) {
     case 'verschwunden': wissen.opfer = e.name; break
     case 'fund':
       wissen.funde.push(e.text)
-      if (e.typ === 'spur') wissen.spur = { ort: e.ort, richtung: e.richtung }
+      if (e.typ === 'spur') { wissen.spur = { ort: e.ort, richtung: e.richtung }; if (wissen.opfer) wissen.plaetze[wissen.opfer] = e.ort }   // die Spur verraet den Platz des Opfers
       if (e.typ === 'staub') wissen.staub.add(e.ort)
       break
     case 'zettel': wissen.zettel = e.ort; wissen.funde.push(`Zettel: ${e.text}`); break
