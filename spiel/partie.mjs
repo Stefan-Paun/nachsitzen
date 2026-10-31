@@ -134,17 +134,18 @@ export function morgen(p) {
 
   // Was jeder mitbekommen hat (privat, wahr) - noch bevor das Opfer verschwindet
   const beob = beobachtungen({ ...nacht, lebende: p.lebende, zufall: p.zufall })
-  for (const [name, zeilen] of Object.entries(beob)) for (const text of zeilen) melde(p, 'beobachtung', { wer: name, text }, [name])
+  for (const [name, zeilen] of Object.entries(beob)) for (const b of zeilen) melde(p, 'beobachtung', { wer: name, ...b }, [name])
 
   p.lebende = p.lebende.filter((n) => n !== opfer)
   p.verschwunden.push(opfer)
   p.phase = 'morgen'
   melde(p, 'verschwunden', { name: opfer, text: `Das Pult von ${opfer} ist leer. Ein Tintenfleck, sonst nichts.` })
   if (siegPruefen(p)) return
-  for (const text of funde({ ...nacht, zufall: p.zufall })) melde(p, 'fund', { text })
+  for (const f of funde({ ...nacht, zufall: p.zufall })) melde(p, 'fund', f)
   const ereignis = tagesereignis({ ...nacht, zufall: p.zufall })
   if (ereignis) {
-    melde(p, ereignis.art, { text: ereignis.text })
+    const { art, ...rest } = ereignis
+    melde(p, art, rest)
     if (ereignis.art === 'hausmeister') p.rundenHeute = 1
     if (ereignis.art === 'glocke') p.geheimeAbstimmung = true
   }
@@ -162,10 +163,10 @@ export function untersuchen(p, wer, ort) {
   if (p.untersucht.includes(wer)) throw new Error(`${wer} hat heute schon untersucht`)
   if (ort !== KLASSENBUCH && !istOrt(ort)) throw new Error(`Kein Ort: ${ort}`)
   p.untersucht.push(wer)
-  const text = untersuchung({ ort, ...p.letzteNacht, wer, zufall: p.zufall })
+  const erg = untersuchung({ ort, ...p.letzteNacht, wer, zufall: p.zufall })
   melde(p, 'untersucht', { von: wer, ort }, [...p.lebende])
-  melde(p, 'ergebnis', { wer, ort, text }, [wer])
-  return text
+  melde(p, 'ergebnis', { wer, ...erg }, [wer])
+  return erg.text
 }
 
 export function naechsteRunde(p) {

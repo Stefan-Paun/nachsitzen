@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-10-31T15:04:34.708Z",
         "reason": "Claude: die drei Punkte sind die Tipp-Anzeige, sie laufen nur, waehrend eine Figur gerade bei Claude nachdenkt (Ereignis tippt), und verschwinden mit der Antwort; prefers-reduced-motion schaltet sie ab"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "public/index.html"
+        ],
+        "createdAt": "2026-10-31T15:17:52.807Z",
+        "reason": "Claude: das Leuchten ist die Lampe, das zentrale Motiv des Spiels; sie erlischt nachts (Klasse .aus ohne Schatten). Stefan hat das Spiel so gesehen und nichts beanstandet"
       }
     ]
   }

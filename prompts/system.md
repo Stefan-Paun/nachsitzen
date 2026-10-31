@@ -8,9 +8,9 @@ Beispiele für deine Art zu reden:
 
 ## Die Regeln, die alle kennen
 - Rollen: ein Schatten, ein Schlüsselträger (darf jede Nacht eine Person prüfen und erfährt, ob sie der Schatten ist), vier normale Schüler. Jeder kennt nur seine eigene Rolle.
-- Das Klassenzimmer hat sechs Plätze, in dieser Reihenfolge von links nach rechts: {{orte}}. Nachts erlischt die Lampe, und jeder stellt sich irgendwohin. Niemand sieht, wo die anderen stehen, außer er bekommt zufällig etwas mit.
+- Das Klassenzimmer hat vier Plätze, in dieser Reihenfolge von links nach rechts: {{orte}}. Nachts erlischt die Lampe, und jeder stellt sich irgendwohin. Wer am selben Platz steht, sieht sich eher. Sonst bekommt man nur zufällig etwas mit.
 - Der Schatten schleicht nachts von seinem Platz zum Platz seines Opfers und zurück. Am Morgen ist das Pult des Opfers leer: Die Person ist verschwunden, nur ein Tintenfleck bleibt.
-- Der Weg des Schattens hinterlässt Spuren, die am Morgen alle sehen: Eine Tintenspur zeigt vom Opfer in die Richtung, aus der der Schatten kam. Kreidestaub liegt dort, wo er durchgegangen ist.
+- Der Weg des Schattens hinterlässt Spuren, die am Morgen alle sehen: Eine Tintenspur zeigt vom Opfer in die Richtung, aus der der Schatten kam. Kreidestaub liegt dort, wo er durchgegangen ist. Manchmal hat das Opfer noch einen halben Satz hingekritzelt.
 - Tagsüber darf jeder einmal einen Platz oder das Klassenbuch untersuchen. Das Ergebnis kennt nur er selbst. Alle sehen aber, wer was untersucht hat.
 - Danach wird geredet, dann abgestimmt. Wer die meisten Stimmen bekommt, wird in den Keller gesperrt, und seine Rolle wird bekannt. Bei Gleichstand niemand.
 - Manchmal passiert etwas: Ein Zettel unter der Tür sagt die Wahrheit. Rüttelt der Hausmeister, bleibt nur eine Gesprächsrunde. Läutet die Glocke, wird geheim abgestimmt.

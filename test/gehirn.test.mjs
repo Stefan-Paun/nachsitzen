@@ -38,7 +38,7 @@ test('Werkzeuge je Phase und Rolle, Namen als enum', () => {
   assert.deepEqual(werkzeuge('nacht', SCHLUESSEL, andere).map((t) => t.name), ['pruefen'])
   assert.deepEqual(werkzeuge('nacht', SCHUELER, andere).map((t) => t.name), ['verstecken'])
   assert.deepEqual(werkzeuge('nacht', SCHATTEN, andere)[0].input_schema.required, ['platz', 'ziel'])
-  assert.equal(werkzeuge('nacht', SCHUELER, andere)[0].input_schema.properties.platz.enum.length, 6)
+  assert.equal(werkzeuge('nacht', SCHUELER, andere)[0].input_schema.properties.platz.enum.length, 4)
   const ab = werkzeuge('abstimmung', SCHUELER, andere)[0]
   assert.deepEqual(ab.input_schema.properties.fuer.enum, ['Mira', 'Jonas', 'niemand'])
   assert.ok(werkzeuge('nacht', SCHATTEN, andere)[0].strict)
@@ -50,7 +50,7 @@ test('Verlauf als Text: private Zeilen nur in der eigenen Sicht, "Du" statt Name
   P.abendBeenden(p)
   const s = P.schatten(p), k = P.schluesseltraeger(p)
   const opfer = NAMEN.find((n) => n !== s && n !== k)
-  p.lebende.forEach((n, i) => P.platzWaehlen(p, n, P.ORT_NAMEN[i]))
+  p.lebende.forEach((n, i) => P.platzWaehlen(p, n, P.ORT_NAMEN[i % P.ORT_NAMEN.length]))
   P.schattenWaehlt(p, opfer); P.schluesselPrueft(p, s); P.morgen(p)
   const tS = verlaufAlsText(P.verlaufFuer(p, s), s), tK = verlaufAlsText(P.verlaufFuer(p, k), k), tO = verlaufAlsText(P.verlaufFuer(p, 'Mira'), 'Mira')
   assert.ok(tS.includes(`Du schleichst zu ${opfer}`)); assert.ok(!tK.includes('Du schleichst zu'))

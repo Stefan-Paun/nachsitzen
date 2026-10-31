@@ -19,6 +19,7 @@
   <section class="start" id="start">
     <h1>Nachts in der Schule.<br>Sechs Pulte, eine Lampe.</h1>
     <p>Fünf Mitschüler, die wirklich reden, lügen und abstimmen. Einer von euch ist <b>der Schatten</b>. Vielleicht du.</p>
+    <p>Nachts stellt sich jeder an einen von vier Plätzen. Der Schatten schleicht zu seinem Opfer und hinterlässt Spuren. Am Morgen zählt, wer was gesehen hat und wer über seinen Platz lügt.</p>
     <form id="startform">
       <label>Dein Name <input id="name" value="Stefan" maxlength="20" autocomplete="off"></label>
       <div class="reihe">
@@ -31,9 +32,15 @@
 
   <section class="raum" id="raum" hidden>
     <div class="verlauf" id="verlauf" aria-live="polite"></div>
-    <aside class="klasse">
-      <h2>Im Raum</h2>
-      <ul id="klasse"></ul>
+    <aside class="tafel">
+      <h2>Spurentafel <span class="nachtnr" id="nachtnr"></span></h2>
+      <div class="raumplan" id="raumplan"></div>
+      <h3>Was ich weiß</h3>
+      <ul class="liste" id="wissen"><li class="leer">Noch nichts. Nachts bekommst du etwas mit.</li></ul>
+      <h3>Funde</h3>
+      <ul class="liste" id="funde"><li class="leer">Noch keine.</li></ul>
+      <h3>Im Raum</h3>
+      <ul class="klasse" id="klasse"></ul>
       <div class="meinerolle" id="meinerolle"></div>
     </aside>
   </section>

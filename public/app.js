@@ -1,5 +1,5 @@
-// Nachsitzen im Browser: zeigt den Verlauf aus Sicht des Spielers, zeichnet Pixel-Avatare
-// und schickt Eingaben an den Server. Alles Deutsch, keine Abhaengigkeiten.
+// Nachsitzen im Browser: Verlauf aus Sicht des Spielers, Spurentafel (Raumplan, Wissen, Funde),
+// Pixel-Avatare und Eingaben an den Server. Alles Deutsch, keine Abhaengigkeiten.
 
 const $ = (id) => document.getElementById(id)
 const ROLLE = { schatten: 'der Schatten', schluessel: 'der Schlüsselträger', schueler: 'ein normaler Schüler' }
@@ -7,27 +7,31 @@ const PHASE = {
   abend: 'Abend. Die Tür ist zu.', nacht: 'Nacht. Die Lampe ist aus.', morgen: 'Morgen.',
   diskussion: 'Ihr redet.', abstimmung: 'Abstimmung: Wer kommt in den Keller?', ergebnis: 'Ergebnis.', ende: 'Ende.',
 }
-const BEI = { 'Tür': 'bei der Tür', 'Schrank': 'beim Schrank', 'Tafel': 'an der Tafel', 'Pult vorne': 'am Pult vorne', 'Pult hinten': 'am Pult hinten', 'Fenster': 'am Fenster' }
+const BEI = { 'Tür': 'bei der Tür', 'Tafel': 'an der Tafel', 'Pulte': 'bei den Pulten', 'Fenster': 'am Fenster' }
+const ORT_TIPP = { 'Tür': 'ganz links · Klinke, Schlüsselloch', 'Tafel': 'links · Kreide, halber Satz', 'Pulte': 'rechts · Pultreihen, Tintenfässer', 'Fenster': 'ganz rechts · Riegel, Vorhang' }
+const RICHTUNG = { tuer: '← Richtung Tür', fenster: 'Richtung Fenster →', hier: '● gleich daneben' }
 let status = null
 let tippende = new Map()
 let quelle = null
+let karten = { privat: null, morgen: null }
+let wissen = leeresWissen(0)
+
+function leeresWissen(nacht) { return { nacht, plaetze: {}, zettel: null, spur: null, staub: new Set(), durchgang: new Set(), zeilen: [], funde: [], opfer: null } }
 
 // --- Pixel-Avatare: 12x14 Raster, aus Hautfarbe, Haarfarbe, Frisur und Shirt -----------
 function avatar(name, look, px = 4) {
   const W = 12, H = 14
   const c = document.createElement('canvas'); c.width = W * px; c.height = H * px
-  c.setAttribute('role', 'img'); c.setAttribute('aria-label', name)
+  c.setAttribute('role', 'img'); c.setAttribute('aria-label', name); c.title = name
   const g = c.getContext('2d')
   const dot = (x, y, f) => { g.fillStyle = f; g.fillRect(x * px, y * px, px, px) }
   const rect = (x, y, w, h, f) => { g.fillStyle = f; g.fillRect(x * px, y * px, w * px, h * px) }
   const { haut = '#f1cfb0', haar = '#2b2118', frisur = 'kurz', shirt = '#888' } = look || {}
   const dunkler = (hex, k = .75) => { const n = parseInt(hex.slice(1), 16); const f = (v) => Math.round(v * k); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})` }
-  rect(3, 10, 6, 4, shirt); rect(2, 11, 1, 3, shirt); rect(9, 11, 1, 3, shirt)   // Koerper
-  rect(5, 9, 2, 1, haut)                                                        // Hals
-  rect(3, 3, 6, 6, haut)                                                        // Gesicht
-  dot(4, 5, '#1b1f3a'); dot(7, 5, '#1b1f3a')                                    // Augen
-  dot(5, 7, dunkler(haut, .8)); dot(6, 7, dunkler(haut, .8))                    // Mund
-  rect(3, 2, 6, 1, haar); rect(2, 3, 1, 2, haar); rect(9, 3, 1, 2, haar)        // Haare
+  rect(3, 10, 6, 4, shirt); rect(2, 11, 1, 3, shirt); rect(9, 11, 1, 3, shirt)
+  rect(5, 9, 2, 1, haut); rect(3, 3, 6, 6, haut)
+  dot(4, 5, '#1b1f3a'); dot(7, 5, '#1b1f3a'); dot(5, 7, dunkler(haut, .8)); dot(6, 7, dunkler(haut, .8))
+  rect(3, 2, 6, 1, haar); rect(2, 3, 1, 2, haar); rect(9, 3, 1, 2, haar)
   if (frisur === 'lang') { rect(2, 3, 1, 7, haar); rect(9, 3, 1, 7, haar); rect(3, 1, 6, 1, haar) }
   if (frisur === 'bob') { rect(2, 3, 1, 5, haar); rect(9, 3, 1, 5, haar); rect(3, 1, 6, 1, haar); rect(3, 3, 6, 1, haar) }
   if (frisur === 'zopf') { rect(3, 1, 6, 1, haar); rect(9, 4, 1, 5, haar); dot(9, 9, haar) }
@@ -43,6 +47,13 @@ function regie(text, klasse = '') {
   const d = document.createElement('div'); d.className = `regie ${klasse}`; d.textContent = text
   verlauf.appendChild(d); unten()
 }
+function karte(art, titel) {
+  const k = document.createElement('div'); k.className = `karte ${art}`
+  const h = document.createElement('h4'); h.textContent = titel; k.appendChild(h)
+  verlauf.appendChild(k); unten()
+  return k
+}
+function kartenZeile(k, text, klasse = '') { const p = document.createElement('p'); p.className = klasse; p.textContent = text; k.appendChild(p); unten() }
 function blase(von, text, { an = null, still = false } = {}) {
   const ich = von === status?.spieler
   const z = document.createElement('div'); z.className = `zeile${ich ? ' ich' : ''}`
@@ -65,18 +76,24 @@ function farbe(name) {
 
 function zeigeEreignis(e) {
   const ich = status?.spieler
+  merke(e)
   switch (e.art) {
     case 'start': regie(e.text); break
     case 'rolle': if (e.name === ich) $('meinerolle').textContent = `Deine Rolle: ${ROLLE[e.rolle]}.`; break
-    case 'nacht': regie(`Nacht ${e.nacht}. ${e.text}`, 'dunkel'); break
-    case 'platz': regie(`Du stellst dich ${BEI[e.ort] || e.ort} hin.`, 'geheim'); break
+    case 'nacht': karten = { privat: null, morgen: null }; regie(`Nacht ${e.nacht}. ${e.text}`, 'dunkel'); break
+    case 'platz': if (e.wer === ich) regie(`Du stellst dich ${BEI[e.ort] || e.ort} hin.`, 'geheim'); break
     case 'schatten-waehlt': regie(`Du schleichst zu ${e.ziel} und zurück.`, 'geheim'); break
     case 'pruefung': regie(`Du prüfst ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`, 'geheim'); break
-    case 'beobachtung': regie(`Was du mitbekommen hast: ${e.text}`, 'geheim'); break
-    case 'verschwunden': regie(e.text, 'schwer'); break
-    case 'fund': regie(`Fund: ${e.text}`, 'fund'); break
-    case 'zettel': regie(`Ein Zettel unter der Tür: „${e.text}“`, 'fund'); break
-    case 'hausmeister': case 'glocke': regie(e.text, 'schwer'); break
+    case 'beobachtung':
+      if (e.wer !== ich && !status?.zuschauen) break
+      if (!karten.privat) karten.privat = karte('privat', `Nacht ${e.nacht} · was ${e.wer === ich ? 'du' : e.wer} mitbekommen ${e.wer === ich ? 'hast' : 'hat'}`)
+      kartenZeile(karten.privat, (status?.zuschauen ? `${e.wer}: ` : '') + e.text); break
+    case 'verschwunden':
+      karten.morgen = karte('morgen', `Morgen ${e.nacht}`)
+      kartenZeile(karten.morgen, e.text, 'schwer'); break
+    case 'fund': kartenZeile(karten.morgen || (karten.morgen = karte('morgen', `Morgen ${e.nacht}`)), e.text, e.typ === 'notiz' ? 'fund notiz' : 'fund'); break
+    case 'zettel': kartenZeile(karten.morgen || (karten.morgen = karte('morgen', `Morgen ${e.nacht}`)), `Ein Zettel unter der Tür: „${e.text}“`, 'fund'); break
+    case 'hausmeister': case 'glocke': kartenZeile(karten.morgen || (karten.morgen = karte('morgen', `Morgen ${e.nacht}`)), e.text, 'ereignis'); break
     case 'untersucht': blase(e.von, `${e.von === ich ? 'Du untersuchst' : 'untersucht'} ${e.ort === status?.klassenbuch ? 'das Klassenbuch' : `den Platz ${BEI[e.ort] || e.ort}`}.`, { still: true }); break
     case 'ergebnis': regie(`Nur du weißt das: ${e.text}`, 'geheim'); break
     case 'diskussion': regie(`Gespräch, Runde ${e.runde}${e.von ? ` von ${e.von}` : ''}`); break
@@ -88,6 +105,70 @@ function zeigeEreignis(e) {
     case 'niemand': regie(`Niemand kommt in den Keller${e.gleichstand ? ' (Gleichstand)' : ''}.`); break
     case 'ende': regie(e.sieger === 'schueler' ? `Die Schüler haben gewonnen. Der Schatten war ${e.schatten}.` : `Der Schatten hat gewonnen. Es war ${e.schatten}.`, 'ende'); break
   }
+  zeigeTafel()
+}
+
+// --- Spurentafel: was ich ueber die letzte Nacht sicher weiss -------------------------------
+function merke(e) {
+  const ich = status?.spieler
+  if (e.art === 'nacht') { wissen = leeresWissen(e.nacht); return }
+  switch (e.art) {
+    case 'platz': wissen.plaetze[e.wer] = e.ort; if (e.wer === ich) wissen.zeilen.push({ k: 'geheim', t: `Du: ${BEI[e.ort]}` }); break
+    case 'beobachtung':
+      if (e.wer === ich || status?.zuschauen) {
+        if (e.typ === 'gesehen') wissen.plaetze[e.name] = e.ort
+        wissen.zeilen.push({ k: 'geheim', t: (status?.zuschauen ? `${e.wer} sieht: ` : '') + e.text })
+      }
+      break
+    case 'schatten-waehlt': wissen.zeilen.push({ k: 'geheim', t: `Du holst ${e.ziel}.` }); break
+    case 'pruefung': wissen.zeilen.push({ k: 'geheim', t: `Geprüft: ${e.ziel} ist ${e.istSchatten ? 'DER SCHATTEN' : 'kein Schatten'}.` }); break
+    case 'verschwunden': wissen.opfer = e.name; break
+    case 'fund':
+      wissen.funde.push(e.text)
+      if (e.typ === 'spur') wissen.spur = { ort: e.ort, richtung: e.richtung }
+      if (e.typ === 'staub') wissen.staub.add(e.ort)
+      break
+    case 'zettel': wissen.zettel = e.ort; wissen.funde.push(`Zettel: ${e.text}`); break
+    case 'hausmeister': case 'glocke': wissen.funde.push(e.text); break
+    case 'ergebnis':
+      if (e.ort === status?.klassenbuch) wissen.plaetze[e.name] = e.platz
+      else { for (const n of e.namen || []) wissen.plaetze[n] = e.ort; if (e.durchgang) wissen.durchgang.add(e.ort) }
+      wissen.zeilen.push({ k: 'geheim', t: e.text })
+      break
+  }
+}
+
+function zeigeTafel() {
+  if (!status) return
+  $('nachtnr').textContent = wissen.nacht ? `Nacht ${wissen.nacht}` : ''
+  const plan = $('raumplan'); plan.innerHTML = ''
+  const orte = status.orte || Object.keys(BEI)
+  for (const o of orte) {
+    const d = document.createElement('div'); d.className = 'ort'
+    const wer = Object.entries(wissen.plaetze).filter(([, ort]) => ort === o).map(([n]) => n)
+    if (wer.includes(status.spieler)) d.classList.add('ich')
+    const n = document.createElement('div'); n.className = 'n'; n.textContent = o; d.appendChild(n)
+    const leute = document.createElement('div'); leute.className = 'leute'
+    for (const w of wer) leute.appendChild(avatar(w, status.figuren[w], 2))
+    d.appendChild(leute)
+    if (wissen.opfer && wissen.plaetze[wissen.opfer] === o) marke(d, 'opfer', `${wissen.opfer} weg`)
+    if (wissen.spur?.ort === o) marke(d, 'spur', `Tinte ${RICHTUNG[wissen.spur.richtung] || ''}`)
+    if (wissen.staub.has(o) || wissen.durchgang.has(o)) marke(d, 'staub', 'Durchgang')
+    if (wissen.zettel === o) marke(d, 'nein', 'kein Schatten')
+    plan.appendChild(d)
+  }
+  const unbekannt = (status.lebende || []).concat(wissen.opfer ? [wissen.opfer] : []).filter((n) => !(n in wissen.plaetze))
+  let hinweis = plan.nextElementSibling?.classList.contains('planhinweis') ? plan.nextElementSibling : null
+  if (!hinweis) { hinweis = document.createElement('p'); hinweis.className = 'planhinweis'; plan.after(hinweis) }
+  hinweis.textContent = wissen.nacht ? (unbekannt.length ? `Platz unbekannt: ${unbekannt.join(', ')}` : 'Alle Plätze bekannt.') : 'Nachts siehst du hier, wer wo stand.'
+  fuelle($('wissen'), wissen.zeilen.map((z) => [z.t, z.k]), 'Noch nichts. Nachts bekommst du etwas mit.')
+  fuelle($('funde'), wissen.funde.map((t) => [t, 'fund']), 'Noch keine.')
+}
+function marke(d, klasse, text) { const m = document.createElement('div'); m.className = `marke ${klasse}`; m.textContent = text; d.appendChild(m) }
+function fuelle(ul, eintraege, leer) {
+  ul.innerHTML = ''
+  if (!eintraege.length) { const li = document.createElement('li'); li.className = 'leer'; li.textContent = leer; ul.appendChild(li); return }
+  for (const [t, k] of eintraege) { const li = document.createElement('li'); li.className = k; li.textContent = t; ul.appendChild(li) }
 }
 
 // --- Tippt-Anzeige -------------------------------------------------------------------
@@ -99,7 +180,7 @@ function zeigeTippt(von, fertig) {
   tippende.set(von, d); verlauf.appendChild(d); unten()
 }
 
-// --- Klasse (rechte Spalte) ----------------------------------------------------------
+// --- Klasse ---------------------------------------------------------------------------
 function zeigeKlasse() {
   const ul = $('klasse'); ul.innerHTML = ''
   const alle = [...status.lebende, ...status.verschwunden, ...status.keller]
@@ -135,17 +216,16 @@ function zeigeWarte(w) {
   }
   wahl.hidden = false
   if (w.art === 'nacht') {
-    // Erst den Platz, dann (Schatten/Schluesseltraeger) das Ziel
-    hinweis.textContent = 'Nacht. Wo stellst du dich hin?'
-    for (const o of w.orte) knopf(wahl, o, () => {
+    hinweis.textContent = 'Nacht. Wo stellst du dich hin? Die Plätze liegen von links (Tür) nach rechts (Fenster).'
+    for (const o of w.orte) ortKnopf(wahl, o, () => {
       if (w.aufgabe === 'verstecken') return sende({ platz: o })
       wahl.innerHTML = ''
-      hinweis.textContent = `Du stehst ${BEI[o] || o}. ${w.aufgabe === 'holen' ? 'Wen holst du?' : 'Wen prüfst du?'}`
+      hinweis.textContent = `Du stehst ${BEI[o] || o}. ${w.aufgabe === 'holen' ? 'Wen holst du? Dein Weg dorthin hinterlässt Spuren.' : 'Wen prüfst du?'}`
       for (const n of w.optionen) knopf(wahl, n, () => sende({ platz: o, ziel: n }))
     })
   } else if (w.art === 'untersuchen') {
     hinweis.textContent = 'Du darfst heute einen Platz oder das Klassenbuch untersuchen. Alle sehen, was du dir ansiehst, nur du siehst das Ergebnis.'
-    for (const o of w.orte) knopf(wahl, o, () => sende({ ort: o }))
+    for (const o of w.orte) (BEI[o] ? ortKnopf : knopf)(wahl, o, () => sende({ ort: o }))
     knopf(wahl, 'Nichts untersuchen', () => sende({ ort: null }), 'leise')
   } else if (w.art === 'stimme') {
     hinweis.textContent = 'Wer soll in den Keller?'
@@ -153,7 +233,11 @@ function zeigeWarte(w) {
     knopf(wahl, 'niemand', () => sende({ fuer: null }), 'leise')
   }
 }
-function knopf(wo, text, tu, extra = '') { const b = document.createElement('button'); b.className = `knopf ${extra}`; b.type = 'button'; b.textContent = text; b.onclick = tu; wo.appendChild(b) }
+function knopf(wo, text, tu, extra = '') { const b = document.createElement('button'); b.className = `knopf ${extra}`; b.type = 'button'; b.textContent = text; b.onclick = tu; wo.appendChild(b); return b }
+function ortKnopf(wo, ort, tu) {
+  const b = knopf(wo, ort, tu, 'ortknopf')
+  const s = document.createElement('small'); s.textContent = ORT_TIPP[ort] || ''; b.appendChild(s)
+}
 
 async function sende(aktion) {
   for (const b of document.querySelectorAll('#eingabe button')) b.disabled = true
@@ -167,11 +251,12 @@ $('sagen').onsubmit = (ev) => { ev.preventDefault(); const text = $('text').valu
 $('schweigen').onclick = () => sende({ art: 'schweigt' })
 
 // --- Start und Verbindung --------------------------------------------------------------
+function frisch() { verlauf.innerHTML = ''; tippende = new Map(); karten = { privat: null, morgen: null }; wissen = leeresWissen(0); $('meinerolle').textContent = '' }
 async function starten(zuschauen) {
   const r = await fetch('/partie', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: $('name').value, zuschauen }) })
   const d = await r.json()
   if (d && d.fehler) { alert(d.fehler); return }
-  verlauf.innerHTML = ''; tippende = new Map(); $('meinerolle').textContent = ''
+  frisch()
   $('start').hidden = true; $('raum').hidden = false; $('eingabe').hidden = zuschauen
   verbinde()
 }
@@ -182,7 +267,7 @@ $('neu').onclick = () => { $('raum').hidden = true; $('eingabe').hidden = true; 
 function verbinde() {
   quelle?.close()
   quelle = new EventSource('/ereignisse')
-  quelle.addEventListener('status', (m) => { status = JSON.parse(m.data); if (!status) return; zeigeKlasse(); zeigeWarte(status.warte) })
+  quelle.addEventListener('status', (m) => { status = JSON.parse(m.data); if (!status) return; zeigeKlasse(); zeigeTafel(); zeigeWarte(status.warte) })
   quelle.addEventListener('ereignis', (m) => zeigeEreignis(JSON.parse(m.data)))
   quelle.addEventListener('tippt', (m) => { const d = JSON.parse(m.data); zeigeTippt(d.von, d.fertig) })
   quelle.addEventListener('warte', (m) => zeigeWarte(JSON.parse(m.data)))
@@ -191,5 +276,5 @@ function verbinde() {
 // Laeuft schon eine Partie (Seite neu geladen)? Dann direkt rein.
 fetch('/status').then((r) => r.json()).then((s) => {
   if (!s || s.phase === 'ende') return
-  status = s; $('start').hidden = true; $('raum').hidden = false; $('eingabe').hidden = s.zuschauen; verbinde()
+  status = s; frisch(); $('start').hidden = true; $('raum').hidden = false; $('eingabe').hidden = s.zuschauen; verbinde()
 }).catch(() => {})
