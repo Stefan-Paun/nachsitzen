@@ -94,8 +94,10 @@ body { background: var(--nacht); color: var(--text); font: 16px/1.45 -apple-syst
 .planhinweis { font-size: 11px; color: var(--gedaempft); margin: 6px 0 0; }
 .liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
 .liste li { padding: 6px 8px; border-radius: 8px; background: var(--wand); color: var(--text); }
-.liste li.geheim { border-left: 3px solid var(--lampe); }
-.liste li.fund { border-left: 3px solid #8a74b8; }
+.liste li.geheim { background: #221d12; }
+.liste li.geheim::before { content: "● "; color: var(--lampe); }
+.liste li.fund { background: #1b1628; }
+.liste li.fund::before { content: "✎ "; color: #c9b6ee; }
 .liste li.leer { color: var(--gedaempft); background: transparent; padding: 0; }
 
 .klasse { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
