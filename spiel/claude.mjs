@@ -6,7 +6,7 @@ export const MODELL = 'claude-haiku-5-5'
 const URL = 'https://api.anthropic.com/v1/messages'
 
 export function claudeAnfrage({ schluessel, kosten, fetchFn = globalThis.fetch, modell = MODELL, log = () => {} }) {
-  return async function anfrage({ system, nachricht, tools, maxTokens = 300 }) {
+  return async function anfrage({ system, nachricht, tools, maxTokens = 500 }) {
     kosten?.pruefen()
     const body = {
       model: modell,
