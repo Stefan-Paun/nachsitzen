@@ -364,6 +364,7 @@ function verbinde() {
   quelle.addEventListener('tippt', (m) => { const d = JSON.parse(m.data); zeigeTippt(d.von, d.fertig) })
   quelle.addEventListener('warte', (m) => zeigeWarte(JSON.parse(m.data)))
   quelle.addEventListener('hefte', (m) => zeigeHefte(JSON.parse(m.data)))
+  quelle.addEventListener('deckel', (m) => { const d = JSON.parse(m.data); regie(d.text, 'ende'); $('fehler').textContent = d.text })
 }
 
 // Laeuft schon eine Partie (Seite neu geladen)? Dann direkt rein.

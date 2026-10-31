@@ -155,6 +155,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
 
   return {
     server,
+    melde: (art, daten) => sende(art, daten),
     starten: () => new Promise((f) => server.listen(port, host, () => f(server.address().port))),
     schliessen: () => new Promise((f) => { for (const r of verbindungen) r.end(); spiel?.mensch?.abbrechen(); server.close(() => f()) }),
     partie: () => spiel?.p ?? null,
@@ -179,7 +180,11 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
   } else {
   const kosten = kostenRechner()
   const anfrage = claudeAnfrage({ schluessel: apiSchluessel(), kosten, log: (m) => console.log(`  (${m})`) })
-  const fabrik = (name, rolle, opts) => claudeGehirn(ladeFigur(name), rolle, { anfrage, ...opts, log: (m) => console.log(`  (${m})`) })
+  let deckelGemeldet = false
+  const fabrik = (name, rolle, opts) => claudeGehirn(ladeFigur(name), rolle, { anfrage, ...opts, log: (m) => {
+    console.log(`  (${m})`)
+    if (m.includes('Tagesdeckel') && !deckelGemeldet) { deckelGemeldet = true; s.melde('deckel', { text: 'Der Tagesdeckel für die KI-Aufrufe ist erreicht. Die Figuren schweigen ab jetzt, bis morgen (oder du erhöhst DECKEL_PRO_TAG in spiel/kosten.mjs).' }) }
+  } })
   const s = erstelleServer({ gehirnFabrik: fabrik, hefte: hefteSpeicher() })
   const port = await s.starten()
   console.log(`Nachsitzen laeuft auf http://localhost:${port}`)
