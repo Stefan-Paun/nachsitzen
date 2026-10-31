@@ -92,7 +92,7 @@ export function tagesereignis({ plaetze, schatten, zufall }) {
     return { art: 'zettel', ort: falsch, text: `Der Schatten stand heute Nacht nicht ${bei(falsch)}.` }
   }
   if (w < 0.55) return { art: 'hausmeister', text: 'Der Hausmeister rüttelt draußen an der Klinke und flucht. Heute bleibt nur eine Gesprächsrunde.' }
-  if (w < 0.75) return { art: 'glocke', text: 'Die Schulglocke läutet, obwohl niemand sie berührt hat. Heute wird geheim abgestimmt.' }
+  if (w < 0.75) return { art: 'glocke', text: 'Die Schulglocke läutet, obwohl niemand sie berührt hat. Heute wird offen abgestimmt: Jeder sieht sofort, wer wie stimmt.' }
   return null
 }
 
