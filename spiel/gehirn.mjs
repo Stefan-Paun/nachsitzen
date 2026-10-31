@@ -161,7 +161,7 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
     const tool = { name: 'heft_schreiben', description: 'Schreib in dein Heft, was du dir aus dieser Nacht merken willst.', strict: true,
       input_schema: objekt({
         eintrag: { type: 'string', description: 'Drei bis fünf Sätze in deiner Art: Wer hat dich belogen, wer hatte recht, wer war der Schatten, was nimmst du dir vor. Mit Namen.' },
-        vertrauen: { type: 'array', description: 'Wie sehr du jeder Person jetzt traust, von -2 (gar nicht) bis 2 (sehr).', items: objekt({ name: namenSchema(andere, 'Person'), wert: { type: 'integer', minimum: -2, maximum: 2 } }) },
+        vertrauen: { type: 'array', description: 'Wie sehr du jeder Person jetzt traust, von -2 (gar nicht) bis 2 (sehr).', items: objekt({ name: namenSchema(andere, 'Person'), wert: { type: 'integer', enum: [-2, -1, 0, 1, 2] } }) },   // strict: kein minimum/maximum, nur enum
       }) }
     const z = zusammenfassung
     const nachricht = `Die Partie ist vorbei. ${z.sieger === 'schueler' ? 'Die Schüler haben gewonnen' : 'Der Schatten hat gewonnen'}; der Schatten war ${z.schatten}. Verschwunden: ${z.verschwunden.join(', ') || 'niemand'}. Im Keller: ${z.keller.join(', ') || 'niemand'}.\n\nWas du erlebt hast:\n${verlaufAlsText(sicht, name)}\n\nSchreib jetzt in dein Heft (Werkzeug heft_schreiben).`

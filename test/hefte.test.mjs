@@ -79,6 +79,10 @@ test('Claude-Gehirn: Heft steht im Systemprompt, Behauptung kommt aus dem Werkze
   const e = await g.heftSchreiben([], z)
   assert.deepEqual(e, { eintrag: 'Stefan war der Schatten. Nie wieder glaube ich ihm.', vertrauen: { Stefan: -2, Lea: 2 } })
   assert.equal(letzteAnfrage.tools[0].name, 'heft_schreiben'); assert.match(letzteAnfrage.nachricht, /Schatten war Stefan/)
+  // Strikte Werkzeuge: die API lehnt minimum/maximum ab (400 in Partie 6), erlaubt sind Enums
+  const schemaText = JSON.stringify(letzteAnfrage.tools[0].input_schema)
+  assert.ok(!/minimum|maximum/.test(schemaText), 'kein minimum/maximum im Schema')
+  assert.deepEqual(letzteAnfrage.tools[0].input_schema.properties.vertrauen.items.properties.wert.enum, [-2, -1, 0, 1, 2])
   const f = await g.heftSchreiben([], z)
   assert.match(f.eintrag, /Stefan der Schatten war/); assert.deepEqual(f.vertrauen, {})
 })
