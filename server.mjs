@@ -128,6 +128,13 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(hefte.alle(KI_FIGUREN)))
         return
       }
+      if (req.method === 'GET' && url.pathname === '/verlauf') {
+        // Alle sichtbaren Ereignisse ab ?ab=<nr> als JSON (fuer Skripte und Tests ohne SSE)
+        const ab = Number(url.searchParams.get('ab') || 0)
+        const liste = spiel ? spiel.p.ereignisse.filter((e) => e.nr >= ab && sichtbar(e)).map(fuerBrowser) : []
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ereignisse: liste, status: status() }))
+        return
+      }
       if (req.method === 'GET' && url.pathname === '/status') {
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(status()))
         return
