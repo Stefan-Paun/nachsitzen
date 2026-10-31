@@ -5,11 +5,12 @@
 
 import { verteileRollen, SCHATTEN, SCHLUESSEL } from './rollen.mjs'
 import { auswerten } from './abstimmung.mjs'
-import { ORT_NAMEN, KLASSENBUCH, istOrt, beobachtungen, funde, tagesereignis, untersuchung } from './welt.mjs'
+import { ORT_NAMEN, KLASSENBUCH, istOrt, beobachtungen, funde, tagesereignis, untersuchung, opferSatz } from './welt.mjs'
 
 export const PHASEN = ['abend', 'nacht', 'morgen', 'diskussion', 'abstimmung', 'ergebnis', 'ende']
 export const SPRECHRUNDEN = 2        // Diskussionsrunden pro Tag (Hausmeister: 1)
 export const MAX_NAECHTE = 10        // Notbremse gegen Endlosschleifen
+export const MAX_UNTERSUCHUNGEN = 3  // pro Figur und Partie (sonst ist die Wahrheit zu billig)
 
 export function neuePartie(namen, zufall, { spieler = null } = {}) {
   const rollen = verteileRollen(namen, zufall)
@@ -32,6 +33,7 @@ export function neuePartie(namen, zufall, { spieler = null } = {}) {
     verwischt: false,                 // hat der Schatten heute Nacht seine Spur verwischt?
     verwischtBenutzt: false,          // nur einmal pro Partie
     untersucht: [],                   // wer heute schon untersucht hat
+    untersuchungen: {},               // wie oft jede Figur in dieser Partie untersucht hat
     ergebnisse: {},                   // heutige Untersuchungsergebnisse je Figur (fuer Vorzeigen)
     vorgezeigt: [],                   // wer heute schon einen Beweis vorgezeigt hat
     offeneAbstimmung: false,          // Standard: geheim; die Glocke macht sie offen
@@ -160,7 +162,7 @@ export function morgen(p) {
   p.lebende = p.lebende.filter((n) => n !== opfer)
   p.verschwunden.push(opfer)
   p.phase = 'morgen'
-  melde(p, 'verschwunden', { name: opfer, text: `Das Pult von ${opfer} ist leer. Ein Tintenfleck, sonst nichts.` })
+  melde(p, 'verschwunden', { name: opfer, ort: nacht.plaetze[opfer], text: opferSatz(opfer, nacht.plaetze[opfer], p.zufall) })
   if (siegPruefen(p)) return
   for (const f of funde({ ...nacht, zufall: p.zufall })) melde(p, 'fund', f)
   const ereignis = tagesereignis({ ...nacht, zufall: p.zufall })
@@ -177,11 +179,15 @@ export function morgen(p) {
 
 // --- Tag: untersuchen, reden, abstimmen -------------------------------------------------
 
-// Einmal pro Tag darf jede Figur einen Ort oder das Klassenbuch untersuchen (in Runde 1).
+export function untersuchungenUebrig(p, wer) { return Math.max(0, MAX_UNTERSUCHUNGEN - (p.untersuchungen[wer] || 0)) }
+
+// Einmal pro Tag, hoechstens dreimal pro Partie, darf jede Figur einen Ort oder das Klassenbuch untersuchen.
 export function untersuchen(p, wer, ort) {
   pruefePhase(p, 'diskussion')
   if (!lebt(p, wer)) throw new Error(`${wer} ist nicht im Raum`)
   if (p.untersucht.includes(wer)) throw new Error(`${wer} hat heute schon untersucht`)
+  if (!untersuchungenUebrig(p, wer)) throw new Error(`${wer} hat in dieser Partie schon ${MAX_UNTERSUCHUNGEN}-mal untersucht`)
+  p.untersuchungen[wer] = (p.untersuchungen[wer] || 0) + 1
   if (ort !== KLASSENBUCH && !istOrt(ort)) throw new Error(`Kein Ort: ${ort}`)
   p.untersucht.push(wer)
   const erg = untersuchung({ ort, ...p.letzteNacht, wer, zufall: p.zufall })

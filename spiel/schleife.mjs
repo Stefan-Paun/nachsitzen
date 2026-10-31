@@ -42,7 +42,9 @@ export async function spieleBisZumEnde(p, gehirne, { zufall, beobachter = () => 
     if (p.phase === 'diskussion') {
       // Runde 1 beginnt mit den Untersuchungen
       for (const n of zufall.mischen(p.lebende)) {
-        const u = await gehirne[n].untersuchen?.(sicht(n), p.lebende, { orte: [...ORT_NAMEN, KLASSENBUCH] })
+        const uebrig = P.untersuchungenUebrig(p, n)
+        if (!uebrig) continue
+        const u = await gehirne[n].untersuchen?.(sicht(n), p.lebende, { orte: [...ORT_NAMEN, KLASSENBUCH], uebrig })
         if (u?.ort) { P.untersuchen(p, n, u.ort); melde(); await pause() }
       }
       // Wer will sein Ergebnis vorzeigen? (das Spiel buergt fuer die Wahrheit)

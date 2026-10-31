@@ -19,7 +19,7 @@ export function browserGehirn(name, rolle, { sende }) {
     abend: (sicht, lebende) => frage({ art: 'sagen', pflicht: true, andere: andere(lebende) }),
     diskussion: (sicht, lebende) => frage({ art: 'sagen', pflicht: false, andere: andere(lebende) }),
     nacht: (sicht, lebende, { orte, ziele, verwischen }) => frage({ art: 'nacht', aufgabe: rolle === SCHATTEN ? 'holen' : rolle === SCHLUESSEL ? 'pruefen' : 'verstecken', orte, optionen: ziele ?? andere(lebende), verwischen: !!verwischen }),
-    untersuchen: (sicht, lebende, { orte }) => frage({ art: 'untersuchen', orte }),
+    untersuchen: (sicht, lebende, { orte, uebrig }) => frage({ art: 'untersuchen', orte, uebrig }),
     zeigen: (sicht, lebende, { ergebnis }) => frage({ art: 'zeigen', ergebnis: ergebnis.text }),
     abstimmung: (sicht, lebende) => frage({ art: 'stimme', optionen: andere(lebende) }),
     merkePruefung() {},

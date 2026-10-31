@@ -39,11 +39,12 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
     rolle: spiel.spieler ? spiel.p.rollen[spiel.spieler] : null,
     rollen: spiel.zuschauen || spiel.p.phase === 'ende' ? spiel.p.rollen : null,
     figuren: spiel.figuren, warte: spiel.mensch?.wartetAuf() ?? null, orte: ORT_NAMEN, klassenbuch: KLASSENBUCH, hefte: !!hefte, hefteGeschrieben: spiel.hefteGeschrieben,
+    geist: !!spiel.spieler && !spiel.p.lebende.includes(spiel.spieler), untersuchungenUebrig: spiel.spieler ? P.untersuchungenUebrig(spiel.p, spiel.spieler) : null,
   }
   // Zuschauer sehen alles. Der Spieler sieht, was seine Figur sehen darf; ist er verschwunden
   // oder im Keller, schaut er als Geist weiter zu (alles ausser privaten Nacht-Ereignissen).
-  const sichtbar = (e) => spiel.zuschauen || e.sichtbar.includes(spiel.spieler)
-    || (!spiel.p.lebende.includes(spiel.spieler) && e.sichtbar.length > 1)
+  // Als Geist (verschwunden oder im Keller) sieht der Spieler alles, auch die Nacht der anderen.
+  const sichtbar = (e) => spiel.zuschauen || e.sichtbar.includes(spiel.spieler) || !spiel.p.lebende.includes(spiel.spieler)
   const fuerBrowser = (e) => { const { sichtbar: _, ...rest } = e; return rest }
 
   function neuePartie({ name, zuschauen }) {

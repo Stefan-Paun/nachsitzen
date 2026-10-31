@@ -35,8 +35,9 @@ if (arg('--neu')) {
   console.log(`Partie gestartet. Du bist ${name}.
 Kurz die Regeln: Sechs sitzen fest, einer ist der Schatten, einer hat den Schlüssel (prüft nachts eine Person).
 Nachts stellt sich jeder an einen von vier Plätzen (Tür · Tafel · Pulte · Fenster, von links nach rechts).
+Jeder Platz hat einen Vorteil: Tür hört jeden Schritt, Tafel merkt jeden, der vorbeihuscht, Pulte sieht links und rechts, Fenster zeigt im Mondlicht alle dort.
 Der Schatten schleicht zu seinem Opfer; Tintenspur = Richtung, aus der er kam, Kreidestaub = wo er durchging.
-Tagsüber: einmal untersuchen, Ergebnis vorzeigen (gilt als bewiesen), reden, geheim abstimmen.
+Tagsüber: einmal untersuchen (höchstens dreimal pro Partie), Ergebnis vorzeigen (gilt als bewiesen), reden, geheim abstimmen.
 Die Schüler gewinnen, wenn der Schatten im Keller ist; der Schatten, wenn nur noch zwei übrig sind.`)
 }
 
@@ -89,6 +90,6 @@ console.log(`\n--- Noch im Raum: ${status.lebende.join(', ')} · Phase: ${status
 if (!w) console.log('--- Die anderen sind dran. Nochmal aufrufen.')
 else if (w.art === 'sagen') console.log(`--- DU BIST DRAN: --sagen "..." [--an ${w.andere.join('|')}]${w.pflicht ? ' (Pflicht)' : ' oder --schweigen'}`)
 else if (w.art === 'nacht') console.log(`--- NACHT: --platz ${w.orte.join('|')}${w.aufgabe !== 'verstecken' ? ` --ziel ${w.optionen.join('|')}  (${w.aufgabe === 'holen' ? 'Pflicht: wen du holst' : 'Pflicht: wen du prüfst'})` : ''}${w.verwischen ? ' [--verwischen: einmalig die Spur verwischen]' : ''}`)
-else if (w.art === 'untersuchen') console.log(`--- UNTERSUCHEN: --untersuchen ${w.orte.join('|')}|nichts`)
+else if (w.art === 'untersuchen') console.log(`--- UNTERSUCHEN (noch ${w.uebrig ?? '?'}× in dieser Partie): --untersuchen ${w.orte.join('|')}|nichts`)
 else if (w.art === 'zeigen') console.log(`--- VORZEIGEN? Dein Ergebnis: „${w.ergebnis}“ · --zeigen ja|nein (vorgezeigt = für alle bewiesen)`)
 else if (w.art === 'stimme') console.log(`--- ABSTIMMUNG (geheim): --stimme ${w.optionen.join('|')}|niemand`)

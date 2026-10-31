@@ -25,7 +25,8 @@ test('Beobachtungen: jede lebende Figur ausser dem Opfer bekommt mindestens eine
       for (const z of b[n]) {
         assert.ok(z.text && z.typ)
         if (z.typ === 'gesehen') { assert.equal(z.ort, plaetze[z.name]); assert.notEqual(z.name, n); assert.ok(z.text.includes(bei(z.ort))) }
-        if (z.typ === 'bewegung') assert.equal(z.ort, 'Tür')
+        if (z.typ === 'bewegung') assert.equal(z.ort, z.durchgang ? 'Tafel' : 'Tür')
+        if (z.typ === 'gesehen-alle') { assert.equal(z.ort, plaetze[n]); for (const m of z.namen) assert.equal(plaetze[m], plaetze[n]) }
         if (z.typ === 'schritte') {
           // Der Schatten steht ganz links: fuer Mira (auch Tuer) "nah", fuer alle anderen von der Tuerseite
           assert.equal(z.richtung, plaetze[n] === 'Tür' ? 'nah' : 'tuer')
@@ -33,6 +34,29 @@ test('Beobachtungen: jede lebende Figur ausser dem Opfer bekommt mindestens eine
       }
     }
     assert.ok(!b.Jonas.some((z) => z.typ !== 'gesehen'), 'Der Schatten hoert sich nicht selbst')
+  }
+})
+
+test('Platz-Vorteile: Tuer hoert sicher die Richtung, Fenster zeigt alle dort, Pulte sieht links und rechts, Tafel merkt den Durchgang', () => {
+  // Schatten Nora steht am Fenster und holt Mira an der Tuer: der Weg fuehrt durch Pulte und Tafel
+  const pl = { Mira: 'Tür', Jonas: 'Tür', Lea: 'Tafel', Tarik: 'Pulte', Nora: 'Fenster', Stefan: 'Fenster' }
+  for (let s = 1; s <= 40; s++) {
+    const b = beobachtungen({ plaetze: pl, lebende: NAMEN, schatten: 'Nora', opfer: 'Mira', zufall: zufall(s) })
+    const schritte = b.Jonas.filter((z) => z.typ === 'schritte')
+    assert.ok(schritte.length === 1 && schritte[0].richtung === 'fenster' && schritte[0].text.startsWith('Bei der Tür'), 'Tuer hoert genau einmal und sicher')
+    assert.ok(b.Lea.some((z) => z.typ === 'bewegung' && z.durchgang), 'Tafel merkt den Durchgang')
+    const t = b.Tarik.filter((z) => z.typ === 'gesehen').map((z) => z.name).sort()
+    assert.ok(t.includes('Lea') && (t.includes('Nora') || t.includes('Stefan')), `Pulte sieht links und rechts: ${t}`)
+    const f = b.Stefan.find((z) => z.typ === 'gesehen-alle')
+    assert.deepEqual(f.namen, ['Nora']); assert.ok(f.text.includes('Nora'))
+    assert.ok(!b.Nora.some((z) => z.typ === 'schritte' || z.typ === 'bewegung'), 'Der Schatten hoert sich nicht selbst')
+  }
+  // Keiner geht durch die Tafel, wenn der Schatten neben dem Opfer steht
+  const pl2 = { ...pl, Nora: 'Tafel', Lea: 'Tafel' }
+  for (let s = 1; s <= 40; s++) {
+    const b = beobachtungen({ plaetze: pl2, lebende: NAMEN, schatten: 'Nora', opfer: 'Mira', zufall: zufall(s) })
+    assert.ok(!b.Lea.some((z) => z.durchgang))
+    const f = b.Stefan.find((z) => z.typ === 'gesehen-alle'); assert.deepEqual(f.namen, [])
   }
   // Wer am selben Platz steht, wird oefter gesehen: Mira steht mit Jonas an der Tuer
   let gleich = 0, gesamt = 0

@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SCHATTEN, SCHLUESSEL } from './rollen.mjs'
-import { ORT_NAMEN, KLASSENBUCH, bei, behauptungAus } from './welt.mjs'
+import { ORT_NAMEN, KLASSENBUCH, bei, behauptungAus, VORTEILE } from './welt.mjs'
 import { eintragBauen } from './hefte.mjs'
 
 const HIER = path.dirname(fileURLToPath(import.meta.url))
@@ -37,6 +37,7 @@ export function systemPrompt(figur, rolle, mitspieler, spieler, heft = '') {
     spielerhinweis: '',   // der Mensch wird nicht erwaehnt: die Figuren sollen ihn behandeln wie jeden anderen
     rolle: ROLLEN_TEXTE[rolle],
     orte: ORT_NAMEN.join(', '),
+    vorteile: ORT_NAMEN.map((o) => `${o}: ${VORTEILE[o]}`).join(' '),
   }
   return SYSTEM_VORLAGE.replace(/\{\{(\w+)\}\}/g, (_, k) => ersetze[k] ?? '')
 }
@@ -162,8 +163,8 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
 
   // Untersuchen kostet keinen API-Aufruf: eine einfache Heuristik entscheidet, was die Figur
   // sich ansieht. Das Ergebnis landet in ihrem Verlauf, mit dem sie dann redet.
-  function untersuchen(sicht, lebende, { orte }) {
-    if (zufall.zahl() < 0.25) return null
+  function untersuchen(sicht, lebende, { orte, uebrig = 3 }) {
+    if (zufall.zahl() < (uebrig <= 1 ? 0.5 : 0.25)) return null   // die letzte Untersuchung hebt man sich eher auf
     const heute = Math.max(0, ...sicht.map((e) => e.nacht ?? 0))
     const schonDran = new Set(sicht.filter((e) => e.art === 'untersucht' && e.nacht === heute).map((e) => e.ort))
     const frei = (o) => !schonDran.has(o)

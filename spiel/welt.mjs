@@ -4,12 +4,24 @@
 // Jede Beobachtung, jeder Fund traegt neben dem Text auch Felder (typ, ort, name, richtung),
 // damit der Browser daraus die Spurentafel bauen kann.
 
+// Jeder Platz hat einen Eigenwert in der Nacht (vorteil): die Tuer hoert jeden Schritt im Raum,
+// die Tafel merkt jeden, der vorbeihuscht, bei den Pulten sieht man nach beiden Seiten,
+// und im Mondlicht am Fenster erkennt man alle, die dort stehen.
 export const ORTE = [
-  { name: 'Tür', bei: 'bei der Tür', detail: 'die alte Flügeltür, Klinke eiskalt, das Schlüsselloch leer', staub: 'Kreidestaub auf der Türschwelle, ein halber Schuhabdruck darin' },
-  { name: 'Tafel', bei: 'an der Tafel', detail: 'die Tafel mit einem halb gewischten Satz, die Kreide in der Rinne zerbrochen', staub: 'Kreidestaub vor der Tafel, verwischt, als wäre jemand schnell vorbei' },
-  { name: 'Pulte', bei: 'bei den Pulten', detail: 'die mittleren Pultreihen, zerkratztes Holz, in jedem Pult ein Tintenfass', staub: 'Kreidestaub zwischen den Pultreihen, ein Stuhl steht schief' },
-  { name: 'Fenster', bei: 'am Fenster', detail: 'die hohen Fenster zum Hof, Riegel verrostet, der Vorhang bewegt sich ohne Wind', staub: 'Kreidestaub auf der Fensterbank, daneben ein feuchter Fleck' },
+  { name: 'Tür', bei: 'bei der Tür', detail: 'die alte Flügeltür, Klinke eiskalt, das Schlüsselloch leer', staub: 'Kreidestaub auf der Türschwelle, ein halber Schuhabdruck darin', vorteil: 'Hier hörst du jeden Schritt im Raum und weißt, aus welcher Richtung er kam.' },
+  { name: 'Tafel', bei: 'an der Tafel', detail: 'die Tafel mit einem halb gewischten Satz, die Kreide in der Rinne zerbrochen', staub: 'Kreidestaub vor der Tafel, verwischt, als wäre jemand schnell vorbei', vorteil: 'Wer hier vorbeihuscht, streift die Kreiderinne: Das merkst du sicher.' },
+  { name: 'Pulte', bei: 'bei den Pulten', detail: 'die mittleren Pultreihen, zerkratztes Holz, in jedem Pult ein Tintenfass', staub: 'Kreidestaub zwischen den Pultreihen, ein Stuhl steht schief', vorteil: 'Von der Mitte aus siehst du je eine Person links und rechts von dir.' },
+  { name: 'Fenster', bei: 'am Fenster', detail: 'die hohen Fenster zum Hof, Riegel verrostet, der Vorhang bewegt sich ohne Wind', staub: 'Kreidestaub auf der Fensterbank, daneben ein feuchter Fleck', vorteil: 'Im Mondlicht erkennst du alle, die mit dir am Fenster stehen.' },
 ]
+export const VORTEILE = Object.fromEntries(ORTE.map((o) => [o.name, o.vorteil]))
+
+const OPFER_SAETZE = [
+  (n, ort) => `Das Pult von ${n} ist leer. Ein Tintenfleck, sonst nichts.`,
+  (n, ort) => `Der Stuhl von ${n} liegt umgekippt am Boden, die Jacke hängt noch über der Lehne. Auf dem Pult ein Tintenfleck, sonst nichts.`,
+  (n, ort) => `${n} ist weg. Auf dem Pult steht noch die halb aufgeschraubte Tintenflasche, der Deckel fehlt, und auf dem Holz breitet sich ein Fleck aus.`,
+  (n, ort) => `Von ${n} ist nur das Heft geblieben, aufgeschlagen, eine Seite herausgerissen, ein Tintenfleck quer über die nächste. Der Platz ${bei(ort)} ist leer.`,
+]
+export function opferSatz(name, ort, zufall) { return zufall.aus(OPFER_SAETZE)(name, ort) }
 export const ORT_NAMEN = ORTE.map((o) => o.name)
 export const KLASSENBUCH = 'Klassenbuch'
 export const bei = (ort) => ORTE.find((o) => o.name === ort)?.bei ?? ort
@@ -36,12 +48,31 @@ export function beobachtungen({ plaetze, lebende, schatten, opfer, zufall, verwi
     const zeilen = []
     const andere = lebende.filter((n) => n !== a)
     const pA = idx(plaetze[a])
-    const gesehen = (b) => ({ typ: 'gesehen', name: b, ort: plaetze[b], text: `Du hast gesehen: ${b} stand ${bei(plaetze[b])}.` })
-    // Sehen kann man nur, wer am selben oder am Nachbarplatz steht (die Lampe ist aus)
-    const nahe = andere.filter((n) => plaetze[n] === plaetze[a])
+    const schon = new Set()
+    const gesehen = (b) => { schon.add(b); return { typ: 'gesehen', name: b, ort: plaetze[b], text: `Du hast gesehen: ${b} stand ${bei(plaetze[b])}.` } }
+    const ort = plaetze[a]
+    const nahe = andere.filter((n) => plaetze[n] === ort)
     const nachbarn = andere.filter((n) => Math.abs(idx(plaetze[n]) - pA) === 1)
-    if (nahe.length && zufall.zahl() < 0.75) zeilen.push(gesehen(zufall.aus(nahe)))
-    else if (nachbarn.length && zufall.zahl() < 0.55) zeilen.push(gesehen(zufall.aus(nachbarn)))
+    const richtungZumSchatten = pS === pA ? 'nah' : pS < pA ? 'tuer' : 'fenster'
+    const schritte = () => ({ typ: 'schritte', richtung: richtungZumSchatten, text: richtungZumSchatten === 'nah' ? 'Schritte, ganz nah bei dir, dann Stille.' : `Schritte, ${richtungZumSchatten === 'tuer' ? 'von der Türseite her' : 'von der Fensterseite her'}, ein Knarren, dann nichts mehr.` })
+
+    // Der Eigenwert des Platzes (sicher, kein Wuerfeln)
+    if (ort === 'Tür' && a !== schatten) zeilen.push({ ...schritte(), text: `Bei der Tür hörst du alles: ${schritte().text}` })
+    if (ort === 'Tafel' && a !== schatten && durchquert(plaetze[schatten], plaetze[opfer]).includes('Tafel')) zeilen.push({ typ: 'bewegung', ort: 'Tafel', durchgang: true, text: 'Jemand ist dicht an dir vorbeigehuscht, die Kreide in der Rinne hat geklappert. Von der Tafel kam er nicht, er ist nur durch.' })
+    if (ort === 'Pulte') {
+      const links = andere.filter((n) => idx(plaetze[n]) === pA - 1), rechts = andere.filter((n) => idx(plaetze[n]) === pA + 1)
+      if (links.length) zeilen.push(gesehen(zufall.aus(links)))
+      if (rechts.length) zeilen.push(gesehen(zufall.aus(rechts)))
+    }
+    if (ort === 'Fenster') {
+      if (nahe.length) { for (const n of nahe) schon.add(n); zeilen.push({ typ: 'gesehen-alle', namen: [...nahe], ort, text: `Im Mondlicht am Fenster: ${nahe.join(' und ')} ${nahe.length === 1 ? 'stand' : 'standen'} mit dir dort.` }) }
+      else zeilen.push({ typ: 'gesehen-alle', namen: [], ort, text: 'Im Mondlicht am Fenster: niemand außer dir.' })
+    }
+
+    // Das Zufaellige wie bisher: Sehen nur am selben oder Nachbarplatz (die Lampe ist aus)
+    const restNahe = nahe.filter((n) => !schon.has(n)), restNachbarn = nachbarn.filter((n) => !schon.has(n))
+    if (restNahe.length && zufall.zahl() < 0.75) zeilen.push(gesehen(zufall.aus(restNahe)))
+    else if (restNachbarn.length && zufall.zahl() < 0.55) zeilen.push(gesehen(zufall.aus(restNachbarn)))
     if (a !== schatten) {
       // Verwischen dauert: Nachbarn des Schattens merken es dann fast sicher
       if (Math.abs(pA - pS) <= 1 && zufall.zahl() < (verwischt ? 0.9 : 0.5)) {
@@ -49,10 +80,7 @@ export function beobachtungen({ plaetze, lebende, schatten, opfer, zufall, verwi
           ? { typ: 'bewegung', ort: plaetze[schatten], text: 'Jemand direkt neben dir ist eine Weile weg gewesen und leise zurückgekommen.' }
           : { typ: 'bewegung', ort: plaetze[schatten], text: `Es hat sich jemand ${bei(plaetze[schatten])} bewegt, ganz in deiner Nähe.` })
       }
-      if (zufall.zahl() < 0.5) {
-        const richtung = pS === pA ? 'nah' : pS < pA ? 'tuer' : 'fenster'
-        zeilen.push({ typ: 'schritte', richtung, text: richtung === 'nah' ? 'Schritte, ganz nah bei dir, dann Stille.' : `Schritte, ${richtung === 'tuer' ? 'von der Türseite her' : 'von der Fensterseite her'}, ein Knarren, dann nichts mehr.` })
-      }
+      if (ort !== 'Tür' && zufall.zahl() < 0.5) zeilen.push(schritte())
     }
     if (!zeilen.length) {
       const sichtbar = [...nahe, ...nachbarn]

@@ -108,6 +108,14 @@ test('Sichtbarkeit: Rollen, Platz, Nachtwahl, Pruefung, Beobachtungen und Unters
   assert.equal(oeff.art, 'untersucht'); assert.deepEqual(oeff.sichtbar, p.lebende)
   assert.throws(() => P.untersuchen(p, u, 'Tür'), /heute schon untersucht/)
   assert.throws(() => P.untersuchen(p, p.lebende.find((n) => n !== u), 'Keller'), /Kein Ort/)
+  assert.equal(P.untersuchungenUebrig(p, u), P.MAX_UNTERSUCHUNGEN - 1)
+  // Hoechstens dreimal pro Partie: die vierte Untersuchung wird abgelehnt, egal an welchem Tag
+  p.untersuchungen[u] = P.MAX_UNTERSUCHUNGEN; p.untersucht = []
+  assert.equal(P.untersuchungenUebrig(p, u), 0)
+  assert.throws(() => P.untersuchen(p, u, 'Tür'), /schon 3-mal untersucht/)
+  const weg = p.ereignisse.find((e) => e.art === 'verschwunden')
+  assert.ok(weg.text.includes(opfer) && weg.text.includes('Tintenfle'), 'Opfer-Szene nennt den Namen und bleibt bei Tinte')
+  assert.equal(weg.ort, p.ereignisse.find((e) => e.art === 'platz' && e.wer === opfer).ort)
   P.sprechen(p, u, 'Wer war bei der Tür?', null)
   const letzte = p.ereignisse.at(-1)
   assert.ok(letzte.sichtbar.includes(k) && !letzte.sichtbar.includes(opfer), 'Verschwundene hören nichts mehr')

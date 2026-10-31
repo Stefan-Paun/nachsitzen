@@ -72,7 +72,9 @@ Mitspielen geht auch ohne Browser: `node tools/zug.mjs 4800 --neu DeinName`, dan
 | Abstimmung | Geheim: Jeder schreibt einen Namen auf einen Zettel, aufgedeckt wird erst am Ende. Wer die meisten Stimmen hat, kommt in den Keller, und die Rolle wird bekannt. |
 | Danach | Jede Figur schreibt in ihr Heft, wem sie traut. Beim nächsten Spiel liest sie es wieder. Und das Spiel zeigt die Wahrheit: alle Rollen und wer in welcher Nacht wo stand. |
 
-Regeln, die man wissen sollte: In der ersten Nacht holt der Schatten nie den menschlichen Spieler. Der Schatten darf einmal pro Partie seine Spur verwischen. Scheidest du aus, schaust du als Geist weiter zu. Manchmal passiert etwas: ein Zettel unter der Tür (sagt die Wahrheit), der Hausmeister rüttelt (nur eine Gesprächsrunde), die Glocke läutet (offene Abstimmung).
+Jeder Platz hat nachts einen Vorteil: Bei der **Tür** hörst du jeden Schritt im Raum und die Richtung. An der **Tafel** merkst du sicher, wer vorbeihuscht. Bei den **Pulten** siehst du je eine Person links und rechts. Am **Fenster** zeigt das Mondlicht alle, die dort stehen. Untersuchen darf jeder einmal am Tag, höchstens dreimal pro Partie.
+
+Regeln, die man wissen sollte: In der ersten Nacht holt der Schatten nie den menschlichen Spieler. Der Schatten darf einmal pro Partie seine Spur verwischen. Scheidest du aus, schaust du als Geist weiter zu und siehst dann alles, auch die Nacht der anderen. Manchmal passiert etwas: ein Zettel unter der Tür (sagt die Wahrheit), der Hausmeister rüttelt (nur eine Gesprächsrunde), die Glocke läutet (offene Abstimmung).
 
 Begriffe: Die Schule hat sieben **Pulte** (eines je Figur) und vier **Plätze** für die Nacht (Tür, Tafel, Pulte, Fenster). Wer verschwindet, wurde vom Schatten geholt; wer im **Keller** sitzt, wurde eingesperrt.
 
@@ -87,7 +89,7 @@ Die Hefte liegen außerhalb des Repos unter `~/.local/share/nachsitzen/hefte/`. 
 ## Entwickeln
 
 ```
-npm test                          # 48 Tests ohne Netz: Regeln, Welt, Gehirn mit Fake-API, Server, Simulation
+npm test                          # 49 Tests ohne Netz: Regeln, Welt, Gehirn mit Fake-API, Server, Simulation
 npm run simuliere                 # 100 Partien mit Skript-Gehirnen, Siegquoten
 npm run spiele -- --zuschauen     # eine echte Partie im Terminal (kostet Cent)
 ```

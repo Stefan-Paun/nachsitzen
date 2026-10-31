@@ -16,7 +16,7 @@ const PHASE = {
   diskussion: 'Ihr redet.', abstimmung: 'Abstimmung: Wer kommt in den Keller?', ergebnis: 'Ergebnis.', ende: 'Ende.',
 }
 const BEI = { 'Tür': 'bei der Tür', 'Tafel': 'an der Tafel', 'Pulte': 'bei den Pulten', 'Fenster': 'am Fenster' }
-const ORT_TIPP = { 'Tür': 'ganz links · Klinke, Schlüsselloch', 'Tafel': 'links · Kreide, halber Satz', 'Pulte': 'rechts · Pultreihen, Tintenfässer', 'Fenster': 'ganz rechts · Riegel, Vorhang' }
+const ORT_TIPP = { 'Tür': 'ganz links · hört jeden Schritt im Raum', 'Tafel': 'links · merkt jeden, der vorbeihuscht', 'Pulte': 'Mitte · sieht je eine Person links und rechts', 'Fenster': 'ganz rechts · Mondlicht zeigt alle am Fenster' }
 const RICHTUNG = { tuer: '← Richtung Tür', fenster: 'Richtung Fenster →', hier: '● gleich daneben' }
 let status = null
 let tippende = new Map()
@@ -114,13 +114,13 @@ function zeigeEreignis(e) {
     }
     case 'pruefung': regie(`Du prüfst ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`, 'geheim'); break
     case 'beobachtung':
-      if (e.wer !== ich && !status?.zuschauen) break
+      if (e.wer !== ich && !status?.zuschauen && !status?.geist) break
       if (!karten.privat) karten.privat = karte('privat', `Nacht ${e.nacht} · was ${e.wer === ich ? 'du' : e.wer} mitbekommen ${e.wer === ich ? 'hast' : 'hat'}`)
-      kartenZeile(karten.privat, (status?.zuschauen ? `${e.wer}: ` : '') + e.text); break
+      kartenZeile(karten.privat, (e.wer !== ich ? `${e.wer}: ` : '') + e.text); break
     case 'verschwunden':
       karten.morgen = karte('morgen', `Morgen ${e.nacht}`)
       kartenZeile(karten.morgen, e.text, 'schwer'); ton.klang('verschwunden')
-      if (e.name === ich) regie('Du bist verschwunden. Du schaust als Geist weiter zu und siehst ab jetzt alles, was im Raum gesagt wird.', 'ende'); break
+      if (e.name === ich) regie('Du bist verschwunden. Als Geist siehst du ab jetzt alles: jeden Platz, jede Beobachtung, jeden Zettel. Die Spurentafel füllt sich von selbst.', 'ende'); break
     case 'fund': kartenZeile(karten.morgen || (karten.morgen = karte('morgen', `Morgen ${e.nacht}`)), e.text, e.typ === 'notiz' ? 'fund notiz' : 'fund'); break
     case 'zettel': kartenZeile(karten.morgen || (karten.morgen = karte('morgen', `Morgen ${e.nacht}`)), `Ein Zettel unter der Tür: „${e.text}“`, 'fund'); break
     case 'hausmeister': case 'glocke': kartenZeile(karten.morgen || (karten.morgen = karte('morgen', `Morgen ${e.nacht}`)), e.text, 'ereignis'); break
@@ -133,7 +133,7 @@ function zeigeEreignis(e) {
     case 'schweigt': blase(e.von, `${e.von === ich ? 'Du schweigst' : `${e.von} schweigt`}.`, { still: true }); break
     case 'abstimmung': regie(e.text, 'schwer'); break
     case 'stimme': blase(e.von, e.von === ich ? `Dein Zettel: ${e.fuer ?? 'niemand'}.` : (e.fuer ? `stimmt für ${e.fuer === ich ? 'dich' : e.fuer}.` : 'stimmt nicht ab.'), { still: true }); break
-    case 'eingesperrt': regie(`${e.name} kommt in den Keller. ${e.name} war ${ROLLE[e.rolle]}.`, 'schwer'); ton.klang('eingesperrt'); if (e.name === ich) regie('Du sitzt im Keller. Du schaust als Geist weiter zu.', 'ende'); break
+    case 'eingesperrt': regie(`${e.name} kommt in den Keller. ${e.name} war ${ROLLE[e.rolle]}.`, 'schwer'); ton.klang('eingesperrt'); if (e.name === ich) regie('Du sitzt im Keller. Als Geist siehst du ab jetzt alles: jeden Platz, jede Beobachtung, jeden Zettel.', 'ende'); break
     case 'niemand': regie(`Niemand kommt in den Keller${e.gleichstand ? ' (Gleichstand)' : ''}.`); break
     case 'ende': regie(e.sieger === 'schueler' ? `Die Schüler haben gewonnen. Der Schatten war ${e.schatten}.` : `Der Schatten hat gewonnen. Es war ${e.schatten}.`, 'ende'); ton.klang(e.sieger === 'schueler' ? 'ende-schueler' : 'ende-schatten'); break
   }
@@ -152,9 +152,10 @@ function merke(e) {
       wissen.funde.push(`Beweis (${e.von}): ${e.text}`)
       break
     case 'beobachtung':
-      if (e.wer === ich || status?.zuschauen) {
+      if (e.wer === ich || status?.zuschauen || status?.geist) {
         if (e.typ === 'gesehen') wissen.plaetze[e.name] = e.ort
-        wissen.zeilen.push({ k: 'geheim', t: (status?.zuschauen ? `${e.wer} sieht: ` : '') + e.text })
+        if (e.typ === 'gesehen-alle') for (const n of e.namen || []) wissen.plaetze[n] = e.ort
+        wissen.zeilen.push({ k: 'geheim', t: (e.wer !== ich ? `${e.wer} sieht: ` : '') + e.text })
       }
       break
     case 'schatten-waehlt': wissen.zeilen.push({ k: 'geheim', t: `Du holst ${e.ziel}.` }); break
@@ -316,7 +317,7 @@ function zeigeWarte(w) {
     knopf(wahl, 'Vorzeigen', () => sende({ zeigen: true }))
     knopf(wahl, 'Für mich behalten', () => sende({ zeigen: false }), 'leise')
   } else if (w.art === 'untersuchen') {
-    hinweis.textContent = 'Du darfst heute einen Platz oder das Klassenbuch untersuchen. Alle sehen, was du dir ansiehst, nur du siehst das Ergebnis.'
+    hinweis.textContent = `Du darfst heute einen Platz oder das Klassenbuch untersuchen (noch ${w.uebrig ?? '?'} Mal in dieser Partie). Alle sehen, was du dir ansiehst, nur du siehst das Ergebnis.`
     for (const o of w.orte) (BEI[o] ? ortKnopf : knopf)(wahl, o, () => sende({ ort: o }))
     knopf(wahl, 'Nichts untersuchen', () => sende({ ort: null }), 'leise')
   } else if (w.art === 'stimme') {

@@ -100,6 +100,8 @@ nachsitzen/
 | **M4** | Das Klassenzimmer | Canvas: 6 Pulte, Figuren laufen in der Nacht, Lampen, leeres Pult mit Tintenfleck, Keller-Tür. Impeccable-Durchlauf wie bei tv-home | 1–2 Wochenenden |
 | **M5** | Feinschliff | Ton (Wind, Klavier aus der Nachtschule), Schrecken-Regler, Dämmerung, README mit GIF, Portfolio-Eintrag, Veröffentlichung | 1 Wochenende |
 
+Nach M5 kamen aus der Tester-Runde (10 Agenten, 31.10.) drei Fassungen: **v1.1** (geheime Abstimmung, Nacht-1-Schutz, Vorzeigen, Nachbar-Sicht), **v1.2** (7 Spieler, Spur verwischen, Wahrheit am Ende, Hefte kürzer) und **v1.3** (Plätze mit Eigenwert: Tür hört, Tafel merkt den Durchgang, Pulte sehen links/rechts, Fenster zeigt alle; Untersuchen höchstens dreimal pro Partie; Opfer-Szenen mit Varianten; wer raus ist, sieht als Geist alles).
+
 Nach **M2** hast du etwas, das Spaß macht und das du zeigen kannst. Alles danach ist Kür. Realistisch bei Schule + Matura: M0–M2 bis Mitte November, M4 bis Weihnachten.
 
 ## 7. Risiken und wie wir sie klein halten
