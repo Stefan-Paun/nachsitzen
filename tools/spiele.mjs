@@ -72,7 +72,7 @@ if (spieler) console.log(`Du bist ${spieler}. Deine Rolle: ${ROLLE[p.rollen[spie
 else for (const n of namen) console.log(`  ${n}: ${ROLLE[p.rollen[n]]}`)
 console.log('(Abstimmung: Name tippen oder leer lassen. Eine Nachricht beginnt mit einem Namen, um jemanden direkt anzusprechen.)\n')
 
-const sichtbar = (e) => zuschauen || e.fuer.includes(spieler)
+const sichtbar = (e) => zuschauen || e.sichtbar.includes(spieler)
 let letztePhase = null
 const beobachter = (e) => {
   if (!sichtbar(e) || e.art === 'rolle') return

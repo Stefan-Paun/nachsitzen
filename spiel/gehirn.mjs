@@ -72,7 +72,7 @@ export function werkzeuge(phase, rolle, andere) {
       if (rolle === SCHATTEN) return [{ name: 'holen', description: 'Diese Person verschwindet heute Nacht.', strict: true, input_schema: { type: 'object', additionalProperties: false, required: ['ziel'], properties: { ziel: namenSchema(andere, 'Wen du holst.') } } }]
       if (rolle === SCHLUESSEL) return [{ name: 'pruefen', description: 'Diese Person heute Nacht prüfen: Du erfährst, ob sie der Schatten ist.', strict: true, input_schema: { type: 'object', additionalProperties: false, required: ['ziel'], properties: { ziel: namenSchema(andere, 'Wen du prüfst.') } } }]
       return []
-    case 'abstimmung': return [{ name: 'abstimmen', description: 'Deine Stimme: wer in den Keller soll, oder "niemand".', strict: true, input_schema: { type: 'object', additionalProperties: false, required: ['fuer', 'begruendung'], properties: { fuer: namenSchema([...andere, 'niemand'], 'Dein Kandidat oder niemand.'), begruendung: { type: 'string', description: 'Ein kurzer Satz, warum (sagst du laut).' } } } }]
+    case 'abstimmung': return [{ name: 'abstimmen', description: 'Deine Stimme: wer in den Keller soll, oder "niemand".', strict: true, input_schema: { type: 'object', additionalProperties: false, required: ['fuer', 'begruendung'], properties: { fuer: namenSchema([...andere, 'niemand'], 'Dein Kandidat oder niemand.'), begruendung: { type: 'string', description: 'Ein kurzer Satz, warum, laut gesagt und in deinen eigenen Worten (nicht wiederholen, was andere schon begründet haben).' } } } }]
     default: return []
   }
 }
@@ -103,7 +103,7 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
     switch (w.name) {
       case 'sprechen': {
         const text = String(e.text || '').trim().slice(0, 400)
-        if (!text) return verwerfe('leerer Text')
+        if (!text) return phase === 'diskussion' ? { art: 'schweigt' } : verwerfe('leerer Text')
         return { art: 'sagt', text, an: andere.includes(e.an) ? e.an : null }
       }
       case 'schweigen': return { art: 'schweigt' }

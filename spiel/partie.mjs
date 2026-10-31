@@ -1,5 +1,5 @@
 // Eine Partie: Phasen, Ereignisse und wer was mitbekommt. Reine Logik, kein Netz, keine KI.
-// Jedes Ereignis traegt `fuer`: die Namen, die es sehen duerfen. Daraus baut der Server
+// Jedes Ereignis traegt `sichtbar`: die Namen, die es sehen duerfen. Daraus baut der Server
 // spaeter den Gespraechsverlauf jeder einzelnen Figur (jede hat ihren eigenen Kontext).
 
 import { verteileRollen, SCHATTEN, SCHLUESSEL } from './rollen.mjs'
@@ -32,8 +32,9 @@ export function neuePartie(namen, zufall, { spieler = null } = {}) {
   return p
 }
 
-function melde(p, art, daten, fuer = null) {
-  p.ereignisse.push({ nr: p.ereignisse.length, nacht: p.nacht, phase: p.phase, art, ...daten, fuer: fuer ?? [...p.namen] })
+function melde(p, art, daten, sichtbar = null) {
+  if ('sichtbar' in daten) throw new Error('Ereignisfeld "sichtbar" ist reserviert')
+  p.ereignisse.push({ nr: p.ereignisse.length, nacht: p.nacht, phase: p.phase, art, ...daten, sichtbar: sichtbar ?? [...p.namen] })
 }
 
 export function schatten(p) { return p.namen.find((n) => p.rollen[n] === SCHATTEN) }
@@ -42,7 +43,7 @@ export function lebt(p, name) { return p.lebende.includes(name) }
 
 // Verlauf aus Sicht einer Figur: nur, was sie sehen durfte.
 export function verlaufFuer(p, name) {
-  return p.ereignisse.filter((e) => e.fuer.includes(name))
+  return p.ereignisse.filter((e) => e.sichtbar.includes(name))
 }
 
 function pruefePhase(p, ...erlaubt) {
