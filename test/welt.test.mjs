@@ -44,7 +44,7 @@ test('Funde: Tintenspur mit Richtung, Kreidestaub auf dem echten Weg, Notiz nenn
   let notizen = 0
   for (let s = 1; s <= 40; s++) {
     const f = funde({ plaetze, schatten: 'Jonas', opfer: 'Lea', zufall: zufall(s) })   // Tuer -> Fenster
-    assert.equal(f[0].typ, 'spur'); assert.equal(f[0].ort, 'Fenster'); assert.equal(f[0].richtung, 'tuer'); assert.match(f[0].text, /Richtung Tür/)
+    assert.equal(f[0].typ, 'spur'); assert.equal(f[0].ort, 'Fenster'); assert.equal(f[0].richtung, 'tuer'); assert.match(f[0].text, /Richtung Tür/); assert.match(f[0].text, /kam also von dort: bei der Tür oder an der Tafel oder bei den Pulten/)
     assert.equal(f[1].typ, 'staub'); assert.ok(['Tafel', 'Pulte'].includes(f[1].ort))
     const notiz = f.find((x) => x.typ === 'notiz')
     if (notiz) { notizen++; assert.equal(notiz.richtung, 'tuer'); assert.match(notiz.text, /von der Tür her/); assert.match(notiz.text, /Lea/) }

@@ -108,18 +108,21 @@ function zeigeEreignis(e) {
       kartenZeile(karten.privat, (status?.zuschauen ? `${e.wer}: ` : '') + e.text); break
     case 'verschwunden':
       karten.morgen = karte('morgen', `Morgen ${e.nacht}`)
-      kartenZeile(karten.morgen, e.text, 'schwer'); ton.klang('verschwunden'); break
+      kartenZeile(karten.morgen, e.text, 'schwer'); ton.klang('verschwunden')
+      if (e.name === ich) regie('Du bist verschwunden. Du schaust als Geist weiter zu und siehst ab jetzt alles, was im Raum gesagt wird.', 'ende'); break
     case 'fund': kartenZeile(karten.morgen || (karten.morgen = karte('morgen', `Morgen ${e.nacht}`)), e.text, e.typ === 'notiz' ? 'fund notiz' : 'fund'); break
     case 'zettel': kartenZeile(karten.morgen || (karten.morgen = karte('morgen', `Morgen ${e.nacht}`)), `Ein Zettel unter der Tür: „${e.text}“`, 'fund'); break
     case 'hausmeister': case 'glocke': kartenZeile(karten.morgen || (karten.morgen = karte('morgen', `Morgen ${e.nacht}`)), e.text, 'ereignis'); break
     case 'untersucht': blase(e.von, `${e.von === ich ? 'Du untersuchst' : 'untersucht'} ${e.ort === status?.klassenbuch ? 'das Klassenbuch' : `den Platz ${BEI[e.ort] || e.ort}`}.`, { still: true }); break
+    case 'beweis': regie(`Beweis, vorgezeigt von ${e.von === ich ? 'dir' : e.von} (vom Spiel geprüft): ${e.text}`, 'beweis'); break
+    case 'zettelwahl': regie(`Zettel aufgedeckt: ${Object.entries(e.stimmen).map(([v, f]) => `${v === ich ? 'du' : v} → ${f ?? 'niemand'}`).join(' · ')}`, 'schwer'); break
     case 'ergebnis': regie(`Nur du weißt das: ${e.text}`, 'geheim'); break
     case 'diskussion': regie(`Gespräch, Runde ${e.runde}${e.von ? ` von ${e.von}` : ''}`); if (e.runde === 1) ton.klang('morgen'); break
     case 'sagt': sprecher = e.von; blase(e.von, e.text, { an: e.an }); if (e.von !== ich) ton.klang('stimme'); break
     case 'schweigt': blase(e.von, `${e.von === ich ? 'Du schweigst' : `${e.von} schweigt`}.`, { still: true }); break
     case 'abstimmung': regie(e.text, 'schwer'); break
-    case 'stimme': blase(e.von, e.fuer ? `stimmt für ${e.fuer === ich ? 'dich' : e.fuer}.` : 'stimmt nicht ab.', { still: true }); break
-    case 'eingesperrt': regie(`${e.name} kommt in den Keller. ${e.name} war ${ROLLE[e.rolle]}.`, 'schwer'); ton.klang('eingesperrt'); break
+    case 'stimme': blase(e.von, e.von === ich ? `Dein Zettel: ${e.fuer ?? 'niemand'}.` : (e.fuer ? `stimmt für ${e.fuer === ich ? 'dich' : e.fuer}.` : 'stimmt nicht ab.'), { still: true }); break
+    case 'eingesperrt': regie(`${e.name} kommt in den Keller. ${e.name} war ${ROLLE[e.rolle]}.`, 'schwer'); ton.klang('eingesperrt'); if (e.name === ich) regie('Du sitzt im Keller. Du schaust als Geist weiter zu.', 'ende'); break
     case 'niemand': regie(`Niemand kommt in den Keller${e.gleichstand ? ' (Gleichstand)' : ''}.`); break
     case 'ende': regie(e.sieger === 'schueler' ? `Die Schüler haben gewonnen. Der Schatten war ${e.schatten}.` : `Der Schatten hat gewonnen. Es war ${e.schatten}.`, 'ende'); ton.klang(e.sieger === 'schueler' ? 'ende-schueler' : 'ende-schatten'); break
   }
@@ -132,6 +135,11 @@ function merke(e) {
   if (e.art === 'nacht') { wissen = leeresWissen(e.nacht); return }
   switch (e.art) {
     case 'platz': wissen.plaetze[e.wer] = e.ort; if (e.wer === ich) wissen.zeilen.push({ k: 'geheim', t: `Du: ${BEI[e.ort]}` }); break
+    case 'beweis':
+      if (e.ort === status?.klassenbuch) { const m = /„(\w+) – (.+)\.“/.exec(e.text); if (m) wissen.plaetze[m[1]] = m[2] }
+      else { const m = /Hier standen? letzte Nacht (.+?)\./.exec(e.text); if (m && !/niemand/.test(m[1])) for (const n of m[1].split(' und ')) wissen.plaetze[n] = e.ort; if (/Tintenpunkte/.test(e.text)) wissen.durchgang.add(e.ort) }
+      wissen.funde.push(`Beweis (${e.von}): ${e.text}`)
+      break
     case 'beobachtung':
       if (e.wer === ich || status?.zuschauen) {
         if (e.typ === 'gesehen') wissen.plaetze[e.name] = e.ort
@@ -289,12 +297,16 @@ function zeigeWarte(w) {
       hinweis.textContent = `Du stehst ${BEI[o] || o}. ${w.aufgabe === 'holen' ? 'Wen holst du? Dein Weg dorthin hinterlässt Spuren.' : 'Wen prüfst du?'}`
       for (const n of w.optionen) knopf(wahl, n, () => sende({ platz: o, ziel: n }))
     })
+  } else if (w.art === 'zeigen') {
+    hinweis.textContent = `Willst du dein Ergebnis allen vorzeigen? „${w.ergebnis}“ Vorgezeigt gilt es als bewiesen.`
+    knopf(wahl, 'Vorzeigen', () => sende({ zeigen: true }))
+    knopf(wahl, 'Für mich behalten', () => sende({ zeigen: false }), 'leise')
   } else if (w.art === 'untersuchen') {
     hinweis.textContent = 'Du darfst heute einen Platz oder das Klassenbuch untersuchen. Alle sehen, was du dir ansiehst, nur du siehst das Ergebnis.'
     for (const o of w.orte) (BEI[o] ? ortKnopf : knopf)(wahl, o, () => sende({ ort: o }))
     knopf(wahl, 'Nichts untersuchen', () => sende({ ort: null }), 'leise')
   } else if (w.art === 'stimme') {
-    hinweis.textContent = 'Wer soll in den Keller?'
+    hinweis.textContent = 'Wer soll in den Keller? Dein Zettel bleibt geheim, bis alle abgegeben haben.'
     for (const n of w.optionen) knopf(wahl, n, () => sende({ fuer: n }))
     knopf(wahl, 'niemand', () => sende({ fuer: null }), 'leise')
   }

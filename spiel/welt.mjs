@@ -37,10 +37,11 @@ export function beobachtungen({ plaetze, lebende, schatten, opfer, zufall }) {
     const andere = lebende.filter((n) => n !== a)
     const pA = idx(plaetze[a])
     const gesehen = (b) => ({ typ: 'gesehen', name: b, ort: plaetze[b], text: `Du hast gesehen: ${b} stand ${bei(plaetze[b])}.` })
-    // Wer am selben Platz steht, wird eher gesehen
+    // Sehen kann man nur, wer am selben oder am Nachbarplatz steht (die Lampe ist aus)
     const nahe = andere.filter((n) => plaetze[n] === plaetze[a])
+    const nachbarn = andere.filter((n) => Math.abs(idx(plaetze[n]) - pA) === 1)
     if (nahe.length && zufall.zahl() < 0.75) zeilen.push(gesehen(zufall.aus(nahe)))
-    else if (zufall.zahl() < 0.55) zeilen.push(gesehen(zufall.aus(andere)))
+    else if (nachbarn.length && zufall.zahl() < 0.55) zeilen.push(gesehen(zufall.aus(nachbarn)))
     if (a !== schatten) {
       if (Math.abs(pA - pS) <= 1 && zufall.zahl() < 0.5) {
         zeilen.push(pA === pS
@@ -52,7 +53,10 @@ export function beobachtungen({ plaetze, lebende, schatten, opfer, zufall }) {
         zeilen.push({ typ: 'schritte', richtung, text: richtung === 'nah' ? 'Schritte, ganz nah bei dir, dann Stille.' : `Schritte, ${richtung === 'tuer' ? 'von der Türseite her' : 'von der Fensterseite her'}, ein Knarren, dann nichts mehr.` })
       }
     }
-    if (!zeilen.length) zeilen.push(gesehen(zufall.aus(andere)))
+    if (!zeilen.length) {
+      const sichtbar = [...nahe, ...nachbarn]
+      zeilen.push(sichtbar.length ? gesehen(zufall.aus(sichtbar)) : { typ: 'nichts', text: 'Du hast niemanden in deiner Nähe gesehen, nur Dunkelheit und das Ticken der Uhr.' })
+    }
     erg[a] = zeilen
   }
   return erg
@@ -63,13 +67,14 @@ export function funde({ plaetze, schatten, opfer, zufall }) {
   const pS = idx(plaetze[schatten]), pO = idx(plaetze[opfer])
   const ortO = plaetze[opfer]
   const liste = []
-  if (pS === pO) liste.push({ typ: 'spur', ort: ortO, richtung: 'hier', text: `Die Tintenspur macht nur einen kleinen Bogen: Sie beginnt am Platz von ${opfer} (${bei(ortO)}) und endet gleich daneben. Wer dort stand, war nah dran.` })
+  if (pS === pO) liste.push({ typ: 'spur', ort: ortO, richtung: 'hier', text: `Die Tintenspur macht nur einen kleinen Bogen: Sie beginnt am Platz von ${opfer} (${bei(ortO)}) und endet gleich daneben. Der Schatten stand also am selben Platz wie ${opfer}.` })
   else {
     const r = pS < pO ? 'tuer' : 'fenster'
-    liste.push({ typ: 'spur', ort: ortO, richtung: r, text: `Eine Tintenspur führt vom Platz von ${opfer} (${bei(ortO)}) ${RICHTUNG[r]}, erst dick, dann nur noch Tropfen.` })
+    const seite = ORT_NAMEN.filter((o, i) => (r === 'tuer' ? i < pO : i > pO)).map(bei).join(' oder ')
+    liste.push({ typ: 'spur', ort: ortO, richtung: r, text: `Eine Tintenspur führt vom Platz von ${opfer} (${bei(ortO)}) ${RICHTUNG[r]}, erst dick, dann nur noch Tropfen. Der Schatten kam also von dort: ${seite}.` })
   }
   const weg = durchquert(plaetze[schatten], plaetze[opfer])
-  if (weg.length) { const o = zufall.aus(weg); liste.push({ typ: 'staub', ort: o, text: `${ORTE[idx(o)].staub}.` }) }
+  if (weg.length) { const o = zufall.aus(weg); liste.push({ typ: 'staub', ort: o, text: `${ORTE[idx(o)].staub}. Hier ist der Schatten nur durchgegangen, sein Platz liegt weiter weg.` }) }
   // Letzte Notiz: ein halber Satz, den das Opfer noch hingekritzelt hat (wahr, aber unscharf)
   if (zufall.zahl() < 0.4) {
     const seite = pS === pO ? 'direkt neben mir' : pS < pO ? 'von der Tür her' : 'vom Fenster her'

@@ -66,6 +66,7 @@ body.daemmerung .lampe { transition: none; }
 .regie.schwer { color: var(--text); background: var(--wand); font-weight: 600; }
 .regie.geheim { color: var(--lampe); border-color: var(--lampe); }
 .regie.ende { font-size: 18px; font-weight: 700; color: var(--papier); background: var(--wand); border-color: var(--lampe); }
+.regie.beweis { color: var(--papier); background: #1b2a1f; border-style: solid; border-color: #3f7a55; text-align: left; }
 .karte { align-self: center; width: 100%; max-width: 620px; background: var(--wand); border: 1px solid var(--linie); border-radius: 12px; padding: 12px 14px; }
 .karte h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--gedaempft); }
 .karte.morgen { border-color: #4a3b6a; background: #1b1628; }

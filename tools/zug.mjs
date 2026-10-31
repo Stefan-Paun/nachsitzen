@@ -5,7 +5,8 @@
 //   node tools/zug.mjs <port> --schweigen
 //   node tools/zug.mjs <port> --platz Tür [--ziel Mira]   (Nacht; Ziel nur fuer Schatten/Schluesseltraeger)
 //   node tools/zug.mjs <port> --untersuchen Tafel|Klassenbuch|nichts
-//   node tools/zug.mjs <port> --stimme Nora|niemand
+//   node tools/zug.mjs <port> --zeigen ja|nein             (eigenes Untersuchungsergebnis allen vorzeigen)
+//   node tools/zug.mjs <port> --stimme Nora|niemand        (geheim; wird erst am Ende aufgedeckt)
 //   node tools/zug.mjs <port> --hefte                 nach dem Ende: die Hefte der Figuren
 // Jeder Aufruf druckt danach, was seit dem letzten Aufruf passiert ist (aus Sicht des Spielers).
 
@@ -31,7 +32,12 @@ if (arg('--neu')) {
   const st = await post('/partie', { name })
   if (st.fehler) { console.error(st.fehler); process.exit(1) }
   ab = 0
-  console.log(`Partie gestartet. Du bist ${name}.`)
+  console.log(`Partie gestartet. Du bist ${name}.
+Kurz die Regeln: Sechs sitzen fest, einer ist der Schatten, einer hat den Schlüssel (prüft nachts eine Person).
+Nachts stellt sich jeder an einen von vier Plätzen (Tür · Tafel · Pulte · Fenster, von links nach rechts).
+Der Schatten schleicht zu seinem Opfer; Tintenspur = Richtung, aus der er kam, Kreidestaub = wo er durchging.
+Tagsüber: einmal untersuchen, Ergebnis vorzeigen (gilt als bewiesen), reden, geheim abstimmen.
+Die Schüler gewinnen, wenn der Schatten im Keller ist; der Schatten, wenn nur noch zwei übrig sind.`)
 }
 
 let antwort = null
@@ -39,6 +45,7 @@ if (arg('--sagen')) antwort = await post('/aktion', { art: 'sagt', text: String(
 else if (arg('--schweigen')) antwort = await post('/aktion', { art: 'schweigt' })
 else if (arg('--platz')) antwort = await post('/aktion', { platz: arg('--platz'), ziel: typeof arg('--ziel') === 'string' ? arg('--ziel') : undefined })
 else if (arg('--untersuchen')) antwort = await post('/aktion', { ort: arg('--untersuchen') === 'nichts' ? null : arg('--untersuchen') })
+else if (arg('--zeigen')) antwort = await post('/aktion', { zeigen: arg('--zeigen') !== 'nein' })
 else if (arg('--stimme')) antwort = await post('/aktion', { fuer: arg('--stimme') === 'niemand' ? null : arg('--stimme') })
 if (antwort && !antwort.ok) console.log(`ABGELEHNT: ${antwort.fehler}`)
 
@@ -53,7 +60,7 @@ if (arg('--hefte')) {
 }
 
 // Warten, bis das Spiel wieder etwas von uns will oder vorbei ist (max. 90 s), dabei Neues zeigen
-let gezeigt = ab, status = null
+let gezeigt = ab, status = null, rausGemeldet = false
 const start = Date.now()
 for (;;) {
   const v = await fetch(basis + '/verlauf?ab=' + gezeigt).then(json)
@@ -61,6 +68,10 @@ for (;;) {
   for (const e of v.ereignisse) {
     const z = e.art === 'rolle' ? (e.name === status?.spieler ? `[Deine Rolle] ${e.rolle}` : '') : e.art === 'ende' ? `[ENDE] ${e.sieger === 'schueler' ? 'Die Schüler gewinnen' : 'Der Schatten gewinnt'}. Der Schatten war ${e.schatten}.` : verlaufAlsText([e], status?.spieler)
     if (z) console.log(z)
+    if (!rausGemeldet && status?.spieler && ((e.art === 'verschwunden' && e.name === status.spieler) || (e.art === 'eingesperrt' && e.name === status.spieler))) {
+      console.log(`\n>>> DU BIST RAUS (${e.art === 'verschwunden' ? 'der Schatten hat dich geholt' : 'die anderen haben dich in den Keller gesperrt'}). Du schaust als Geist weiter zu: einfach weiter aufrufen, bis die Partie vorbei ist.`)
+      rausGemeldet = true
+    }
     gezeigt = e.nr + 1
   }
   if (!status || status.phase === 'ende' || status.warte || Date.now() - start > 90_000) break
@@ -75,4 +86,5 @@ if (!w) console.log('--- Die anderen sind dran. Nochmal aufrufen.')
 else if (w.art === 'sagen') console.log(`--- DU BIST DRAN: --sagen "..." [--an ${w.andere.join('|')}]${w.pflicht ? ' (Pflicht)' : ' oder --schweigen'}`)
 else if (w.art === 'nacht') console.log(`--- NACHT: --platz ${w.orte.join('|')}${w.aufgabe !== 'verstecken' ? ` --ziel ${w.optionen.join('|')}  (${w.aufgabe})` : ''}`)
 else if (w.art === 'untersuchen') console.log(`--- UNTERSUCHEN: --untersuchen ${w.orte.join('|')}|nichts`)
-else if (w.art === 'stimme') console.log(`--- ABSTIMMUNG: --stimme ${w.optionen.join('|')}|niemand`)
+else if (w.art === 'zeigen') console.log(`--- VORZEIGEN? Dein Ergebnis: „${w.ergebnis}“ · --zeigen ja|nein (vorgezeigt = für alle bewiesen)`)
+else if (w.art === 'stimme') console.log(`--- ABSTIMMUNG (geheim): --stimme ${w.optionen.join('|')}|niemand`)

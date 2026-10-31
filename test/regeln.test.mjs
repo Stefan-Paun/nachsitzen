@@ -45,7 +45,7 @@ test('Abstimmung: Mehrheit sperrt ein, Gleichstand niemanden, Enthaltung zaehlt 
 function nachtSpielen(p, opfer, pruefziel) {
   const s = P.schatten(p), k = P.schluesseltraeger(p)
   p.lebende.forEach((n, i) => P.platzWaehlen(p, n, ORTE[i % ORTE.length]))
-  P.schattenWaehlt(p, opfer ?? p.lebende.find((n) => n !== s && n !== k))
+  P.schattenWaehlt(p, opfer ?? P.holbar(p).find((n) => n !== k) ?? P.holbar(p)[0])
   if (P.lebt(p, k)) P.schluesselPrueft(p, pruefziel ?? p.lebende.find((n) => n !== k))
   P.morgen(p)
 }
@@ -120,8 +120,10 @@ test('Sieg der Schueler: Schatten eingesperrt', () => {
   for (const n of p.lebende) P.stimme(p, n, n === s ? p.lebende.find((x) => x !== s) : s)
   assert.throws(() => P.abstimmungSchliessen(Object.assign({ ...p }, { stimmen: {} })), /fehlen Stimmen/)
   const st = p.ereignisse.filter((e) => e.art === 'stimme')
-  assert.ok(st.every((e) => typeof e.fuer === 'string' && Array.isArray(e.sichtbar)), 'Stimme behält ihren Kandidaten, Sichtbarkeit steht in "sichtbar"')
+  assert.ok(st.every((e) => typeof e.fuer === 'string' && e.sichtbar.length === 1 && e.sichtbar[0] === e.von), 'geheime Stimme: nur der Wähler sieht seinen Zettel')
   const erg = P.abstimmungSchliessen(p)
+  const aufgedeckt = p.ereignisse.find((e) => e.art === 'zettelwahl')
+  assert.ok(aufgedeckt && aufgedeckt.sichtbar.length === NAMEN.length && Object.keys(aufgedeckt.stimmen).length === st.length, 'am Ende werden alle Zettel aufgedeckt')
   assert.equal(erg.eingesperrt, s)
   assert.equal(p.sieger, 'schueler'); assert.equal(p.phase, 'ende')
   assert.equal(p.ereignisse.at(-1).art, 'ende')
@@ -153,7 +155,30 @@ test('Gleichstand: niemand kommt in den Keller, es wird wieder Nacht', () => {
   assert.equal(p.phase, 'nacht'); assert.equal(p.nacht, 2); assert.equal(p.keller.length, 0)
 })
 
-test('Tagesereignisse: Hausmeister = eine Runde, Glocke = geheime Stimmen', () => {
+test('Nacht 1: der Mensch ist vor dem Schatten geschützt; Vorzeigen macht ein Ergebnis öffentlich und wahr', () => {
+  const p = P.neuePartie(NAMEN, zufall(21), { spieler: 'Stefan' })
+  P.abendBeenden(p)
+  const s = P.schatten(p)
+  if (s !== 'Stefan') {
+    assert.ok(!P.holbar(p).includes('Stefan') && !P.holbar(p).includes(s))
+    assert.throws(() => P.schattenWaehlt(p, 'Stefan'), /Ungültiges Ziel/)
+  }
+  nachtSpielen(p, P.holbar(p)[0])
+  if (p.phase === 'diskussion') {
+    const u = p.lebende[0]
+    assert.throws(() => P.vorzeigen(p, u), /nichts untersucht/)
+    P.untersuchen(p, u, 'Fenster')
+    const erg = P.vorzeigen(p, u)
+    const b = p.ereignisse.at(-1)
+    assert.equal(b.art, 'beweis'); assert.equal(b.von, u); assert.equal(b.text, erg.text); assert.deepEqual(b.sichtbar, p.lebende)
+    assert.throws(() => P.vorzeigen(p, u), /schon gezeigt/)
+    // in Nacht 2 ist der Mensch nicht mehr geschützt
+    redenBisAbstimmung(p); for (const n of p.lebende) P.stimme(p, n, null); P.abstimmungSchliessen(p)
+    if (p.phase === 'nacht' && P.lebt(p, 'Stefan') && s !== 'Stefan') assert.ok(P.holbar(p).includes('Stefan'))
+  }
+})
+
+test('Tagesereignisse: Hausmeister = eine Runde, Glocke = offene Stimmen', () => {
   let hausmeister = 0, glocke = 0
   for (let s = 1; s <= 80 && !(hausmeister && glocke); s++) {
     const { p } = bisZurDiskussion(s)
@@ -166,10 +191,10 @@ test('Tagesereignisse: Hausmeister = eine Runde, Glocke = geheime Stimmen', () =
     if (ereignis?.art === 'glocke') {
       glocke++
       redenBisAbstimmung(p)
-      assert.equal(p.geheimeAbstimmung, true)
+      assert.equal(p.offeneAbstimmung, true)
       const [a, b] = p.lebende
       P.stimme(p, a, b)
-      assert.deepEqual(p.ereignisse.at(-1).sichtbar, [a], 'geheime Stimme sieht nur der Wähler')
+      assert.deepEqual(p.ereignisse.at(-1).sichtbar, p.lebende, 'offene Stimme sehen alle sofort')
     }
   }
   assert.ok(hausmeister && glocke, 'beide Ereignisse kamen in 80 Startwerten vor')

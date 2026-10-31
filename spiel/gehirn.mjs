@@ -14,6 +14,14 @@ const HIER = path.dirname(fileURLToPath(import.meta.url))
 const SYSTEM_VORLAGE = fs.readFileSync(path.join(HIER, '..', 'prompts', 'system.md'), 'utf8')
 const ROLLEN_TEXTE = JSON.parse(fs.readFileSync(path.join(HIER, '..', 'prompts', 'rollen.json'), 'utf8'))
 
+// Text am Satzende kuerzen statt mitten im Wort
+export function satzende(text, max) {
+  if (text.length <= max) return text
+  const kurz = text.slice(0, max)
+  const ende = Math.max(kurz.lastIndexOf('. '), kurz.lastIndexOf('! '), kurz.lastIndexOf('? '), kurz.lastIndexOf('.'))
+  return ende > max / 3 ? kurz.slice(0, ende + 1) : kurz
+}
+
 export function ladeFigur(name) {
   return JSON.parse(fs.readFileSync(path.join(HIER, '..', 'figuren', `${name.toLowerCase()}.json`), 'utf8'))
 }
@@ -26,7 +34,7 @@ export function systemPrompt(figur, rolle, mitspieler, spieler, heft = '') {
     name: figur.name, alter: String(figur.alter), beschreibung: figur.beschreibung, stil: figur.stil,
     beispiele: figur.beispiele.map((b) => `- „${b}“`).join('\n'),
     mitspieler: mitspieler.filter((n) => n !== figur.name).join(', '),
-    spielerhinweis: spieler && spieler !== figur.name ? `${spieler} ist ein echter Mitschüler und tippt selbst, was er sagt. Behandle ihn genau wie alle anderen.` : '',
+    spielerhinweis: '',   // der Mensch wird nicht erwaehnt: die Figuren sollen ihn behandeln wie jeden anderen
     rolle: ROLLEN_TEXTE[rolle],
     orte: ORT_NAMEN.join(', '),
   }
@@ -44,6 +52,8 @@ export function verlaufAlsText(ereignisse, ich) {
       case 'schatten-waehlt': zeilen.push(`[Nacht ${e.nacht}] Du schleichst zu ${e.ziel} und zurück.`); break
       case 'pruefung': zeilen.push(`[Nacht ${e.nacht}] Du prüfst ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`); break
       case 'beobachtung': zeilen.push(`[Nacht ${e.nacht}, was du mitbekommen hast] ${e.text}`); break
+      case 'beweis': zeilen.push(`[BEWEIS, vom Spiel geprüft, wahr] ${e.von === ich ? 'Du zeigst' : `${e.von} zeigt`} das Ergebnis der Untersuchung ${e.ort === KLASSENBUCH ? 'im Klassenbuch' : bei(e.ort)}: ${e.text}`); break
+      case 'zettelwahl': zeilen.push(`[Zettel aufgedeckt] ${Object.entries(e.stimmen).map(([v, f]) => `${v === ich ? 'du' : v} → ${f ?? 'niemand'}`).join(', ')}`); break
       case 'verschwunden': zeilen.push(`[Morgen ${e.nacht}] ${e.text}`); break
       case 'fund': zeilen.push(`[Morgen ${e.nacht}, Fund für alle sichtbar] ${e.text}`); break
       case 'zettel': zeilen.push(`[Morgen ${e.nacht}] Ein Zettel liegt unter der Tür, alle lesen ihn: „${e.text}“`); break
@@ -54,7 +64,7 @@ export function verlaufAlsText(ereignisse, ich) {
       case 'sagt': zeilen.push(`${e.von === ich ? 'Du' : e.von}${e.an ? ` (zu ${e.an === ich ? 'dir' : e.an})` : ''}: ${e.text}`); break
       case 'schweigt': zeilen.push(`${e.von === ich ? 'Du schweigst' : `${e.von} schweigt`}.`); break
       case 'abstimmung': zeilen.push(`[Abstimmung] ${e.text}`); break
-      case 'stimme': zeilen.push(`${e.von === ich ? 'Du stimmst' : `${e.von} stimmt`} ${e.fuer ? `für ${e.fuer}` : 'nicht ab'}.`); break
+      case 'stimme': if (e.von === ich) zeilen.push(`Du schreibst ${e.fuer ? e.fuer : 'niemanden'} auf deinen Zettel.`); else zeilen.push(`${e.von} stimmt ${e.fuer ? `für ${e.fuer}` : 'nicht ab'} (offen).`); break
       case 'eingesperrt': zeilen.push(`[Ergebnis] ${e.name} kommt in den Keller. ${e.name} war ${e.rolle === SCHATTEN ? 'der Schatten' : e.rolle === SCHLUESSEL ? 'der Schlüsselträger' : 'ein normaler Schüler'}.`); break
       case 'niemand': zeilen.push(`[Ergebnis] Niemand kommt in den Keller${e.gleichstand ? ' (Gleichstand)' : ''}.`); break
       default: break   // 'rolle' steht im Systemprompt, 'ende' braucht keine Entscheidung mehr
@@ -82,7 +92,7 @@ export function werkzeuge(phase, rolle, andere) {
       if (rolle === SCHATTEN) return [{ name: 'holen', description: 'Deinen Platz wählen und diese Person heute Nacht holen: Sie verschwindet. Dein Weg hinterlässt Spuren.', strict: true, input_schema: objekt({ platz: platzSchema, ziel: namenSchema(andere, 'Wen du holst.') }) }]
       if (rolle === SCHLUESSEL) return [{ name: 'pruefen', description: 'Deinen Platz wählen und diese Person heute Nacht prüfen: Du erfährst, ob sie der Schatten ist.', strict: true, input_schema: objekt({ platz: platzSchema, ziel: namenSchema(andere, 'Wen du prüfst.') }) }]
       return [{ name: 'verstecken', description: 'Deinen Platz für die Nacht wählen.', strict: true, input_schema: objekt({ platz: platzSchema }) }]
-    case 'abstimmung': return [{ name: 'abstimmen', description: 'Deine Stimme: wer in den Keller soll, oder "niemand".', strict: true, input_schema: objekt({ fuer: namenSchema([...andere, 'niemand'], 'Dein Kandidat oder niemand.'), begruendung: { type: 'string', description: 'Ein kurzer Satz, warum, laut gesagt und in deinen eigenen Worten (nicht wiederholen, was andere schon begründet haben).' } }) }]
+    case 'abstimmung': return [{ name: 'abstimmen', description: 'Dein geheimer Zettel: wer in den Keller soll, oder "niemand". Niemand sieht ihn vor der Auszählung.', strict: true, input_schema: objekt({ fuer: namenSchema([...andere, 'niemand'], 'Dein Kandidat oder niemand.') }) }]
     default: return []
   }
 }
@@ -100,8 +110,8 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
   const system = systemPrompt(figur, rolle, mitspieler, spieler, heft)
   const name = figur.name
 
-  async function entscheide(phase, sicht, lebende) {
-    const andere = lebende.filter((n) => n !== name)
+  async function entscheide(phase, sicht, lebende, extra = {}) {
+    const andere = phase === 'nacht' && extra.ziele ? extra.ziele : lebende.filter((n) => n !== name)
     const tools = werkzeuge(phase, rolle, andere)
     const nachricht = `Was du bisher mitbekommen hast:\n${verlaufAlsText(sicht, name)}\n\nNoch im Raum: ${lebende.join(', ')}.\n${AUFGABE[phase]}`
     let erg
@@ -112,7 +122,7 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
     const e = w.eingabe
     switch (w.name) {
       case 'sprechen': {
-        const text = String(e.text || '').trim().slice(0, 400)
+        const text = satzende(String(e.text || '').trim(), 400)
         if (!text) return phase === 'diskussion' ? { art: 'schweigt' } : verwerfe('leerer Text')
         return { art: 'sagt', text, an: andere.includes(e.an) ? e.an : null, behauptet: ORT_NAMEN.includes(e.behauptetPlatz) ? e.behauptetPlatz : behauptungAus(text) }
       }
@@ -122,10 +132,7 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
       case 'pruefen':
         if (!ORT_NAMEN.includes(e.platz)) return verwerfe(`Platz ${e.platz} ungültig`)
         return andere.includes(e.ziel) ? { platz: e.platz, ziel: e.ziel } : verwerfe(`Ziel ${e.ziel} ungültig`)
-      case 'abstimmen': {
-        const fuer = andere.includes(e.fuer) ? e.fuer : null
-        return { art: 'stimme', fuer, begruendung: String(e.begruendung || '').trim().slice(0, 200) }
-      }
+      case 'abstimmen': return { art: 'stimme', fuer: andere.includes(e.fuer) ? e.fuer : null }
       default: return verwerfe('unbekanntes Werkzeug')
     }
   }
@@ -135,9 +142,17 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
       case 'abend': return { art: 'sagt', text: 'Ist hier noch jemand wach?', an: null }
       case 'diskussion': return { art: 'schweigt' }
       case 'nacht': return { platz: zufall.aus(ORT_NAMEN), ziel: rolle === SCHATTEN || rolle === SCHLUESSEL ? zufall.aus(andere) : undefined }
-      case 'abstimmung': return { art: 'stimme', fuer: null, begruendung: '' }
+      case 'abstimmung': return { art: 'stimme', fuer: null }
       default: return { art: 'schweigt' }
     }
+  }
+
+  // Vorzeigen kostet keinen Aufruf: Wer etwas Belastendes gefunden hat, zeigt es meist; der Schatten eher nicht.
+  function zeigen(sicht, lebende, { ergebnis }) {
+    if (!ergebnis) return false
+    const belastend = (ergebnis.namen?.length > 0 && ergebnis.namen.length <= 2) || ergebnis.durchgang || ergebnis.ort === KLASSENBUCH
+    if (rolle === SCHATTEN) return belastend && !ergebnis.namen?.includes(name) && zufall.zahl() < 0.3
+    return belastend && zufall.zahl() < 0.7
   }
 
   // Untersuchen kostet keinen API-Aufruf: eine einfache Heuristik entscheidet, was die Figur
@@ -160,7 +175,7 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
     const andere = mitspieler.filter((n) => n !== name)
     const tool = { name: 'heft_schreiben', description: 'Schreib in dein Heft, was du dir aus dieser Nacht merken willst.', strict: true,
       input_schema: objekt({
-        eintrag: { type: 'string', description: 'Drei bis fünf Sätze in deiner Art: Wer hat dich belogen, wer hatte recht, wer war der Schatten, was nimmst du dir vor. Mit Namen.' },
+        eintrag: { type: 'string', description: 'Drei bis fünf Sätze in deiner Art, in der Ich-Form. Nur, was du selbst erlebt hast und was am Ende aufgedeckt wurde: Wer hat dich belogen, wer hatte recht, wer war der Schatten, was nimmst du dir vor. Mit Namen, ohne Kraftausdrücke, nichts dazuerfinden.' },
         vertrauen: { type: 'array', description: 'Wie sehr du jeder Person jetzt traust, von -2 (gar nicht) bis 2 (sehr).', items: objekt({ name: namenSchema(andere, 'Person'), wert: { type: 'integer', enum: [-2, -1, 0, 1, 2] } }) },   // strict: kein minimum/maximum, nur enum
       }) }
     const z = zusammenfassung
@@ -174,8 +189,8 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
   return {
     name, rolle, system, heftSchreiben,
     abend: (sicht, lebende) => entscheide('abend', sicht, lebende),
-    nacht: (sicht, lebende) => entscheide('nacht', sicht, lebende),
-    untersuchen,
+    nacht: (sicht, lebende, extra) => entscheide('nacht', sicht, lebende, extra),
+    untersuchen, zeigen,
     diskussion: (sicht, lebende) => entscheide('diskussion', sicht, lebende),
     abstimmung: (sicht, lebende) => entscheide('abstimmung', sicht, lebende),
     merkePruefung() {},   // steht im Verlauf (Ereignis 'pruefung'), kein extra Gedaechtnis noetig

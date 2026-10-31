@@ -29,7 +29,9 @@ export function neuePartie(namen, zufall, { spieler = null } = {}) {
     pruefung: null,                   // { wer, ziel, rolle } des Schluesseltraegers
     letzteNacht: null,                // { plaetze, schatten, opfer } fuer Untersuchungen am Tag
     untersucht: [],                   // wer heute schon untersucht hat
-    geheimeAbstimmung: false,
+    ergebnisse: {},                   // heutige Untersuchungsergebnisse je Figur (fuer Vorzeigen)
+    vorgezeigt: [],                   // wer heute schon einen Beweis vorgezeigt hat
+    offeneAbstimmung: false,          // Standard: geheim; die Glocke macht sie offen
     stimmen: {},
     ereignisse: [],
     sieger: null,                     // 'schueler' | 'schatten' | null
@@ -88,7 +90,9 @@ function nachtBeginnen(p) {
   p.pruefung = null
   p.stimmen = {}
   p.untersucht = []
-  p.geheimeAbstimmung = false
+  p.ergebnisse = {}
+  p.vorgezeigt = []
+  p.offeneAbstimmung = false
   p.rundenHeute = SPRECHRUNDEN
   melde(p, 'nacht', { text: 'Die Lampe erlischt. Jeder sucht sich einen Platz.' })
   if (p.nacht > MAX_NAECHTE) throw new Error('Zu viele Nächte - Spiellogik hängt')
@@ -103,11 +107,18 @@ export function platzWaehlen(p, wer, ort) {
   melde(p, 'platz', { wer, ort }, [wer])
 }
 
+// Wen der Schatten heute holen darf: nicht sich selbst, und in Nacht 1 nicht den Menschen
+// (sonst erlebt ein neuer Spieler sein erstes Spiel nur als Zuschauer).
+export function holbar(p) {
+  const s = schatten(p)
+  return p.lebende.filter((n) => n !== s && !(p.nacht === 1 && n === p.spieler))
+}
+
 export function schattenWaehlt(p, ziel) {
   pruefePhase(p, 'nacht')
   const s = schatten(p)
   if (!lebt(p, s)) throw new Error('Der Schatten ist nicht mehr im Spiel')
-  if (ziel === s || !lebt(p, ziel)) throw new Error(`Ungültiges Ziel: ${ziel}`)
+  if (!holbar(p).includes(ziel)) throw new Error(`Ungültiges Ziel: ${ziel}`)
   p.nachtwahl = ziel
   melde(p, 'schatten-waehlt', { ziel }, [s])
 }
@@ -148,7 +159,7 @@ export function morgen(p) {
     const { art, ...rest } = ereignis
     melde(p, art, rest)
     if (ereignis.art === 'hausmeister') p.rundenHeute = 1
-    if (ereignis.art === 'glocke') p.geheimeAbstimmung = true
+    if (ereignis.art === 'glocke') p.offeneAbstimmung = true
   }
   p.phase = 'diskussion'
   p.runde = 1
@@ -165,16 +176,29 @@ export function untersuchen(p, wer, ort) {
   if (ort !== KLASSENBUCH && !istOrt(ort)) throw new Error(`Kein Ort: ${ort}`)
   p.untersucht.push(wer)
   const erg = untersuchung({ ort, ...p.letzteNacht, wer, zufall: p.zufall })
+  p.ergebnisse[wer] = erg
   melde(p, 'untersucht', { von: wer, ort }, [...p.lebende])
   melde(p, 'ergebnis', { wer, ...erg }, [wer])
   return erg.text
+}
+
+// Das eigene Untersuchungsergebnis allen zeigen. Das Spiel buergt dafuer, dass es wahr ist.
+export function vorzeigen(p, wer) {
+  pruefePhase(p, 'diskussion', 'abstimmung')
+  if (!lebt(p, wer)) throw new Error(`${wer} ist nicht im Raum`)
+  const erg = p.ergebnisse[wer]
+  if (!erg) throw new Error(`${wer} hat heute nichts untersucht`)
+  if (p.vorgezeigt.includes(wer)) throw new Error(`${wer} hat das heute schon gezeigt`)
+  p.vorgezeigt.push(wer)
+  melde(p, 'beweis', { von: wer, ort: erg.ort, text: erg.text }, [...p.lebende])
+  return erg
 }
 
 export function naechsteRunde(p) {
   pruefePhase(p, 'diskussion')
   if (p.runde >= p.rundenHeute) {
     p.phase = 'abstimmung'
-    melde(p, 'abstimmung', { text: p.geheimeAbstimmung ? 'Wer kommt in den Keller? Jeder stimmt für sich, niemand sieht die Zettel.' : 'Wer kommt in den Keller?', geheim: p.geheimeAbstimmung })
+    melde(p, 'abstimmung', { text: p.offeneAbstimmung ? 'Wer kommt in den Keller? Heute offen: Jeder sieht sofort, wer wie stimmt.' : 'Wer kommt in den Keller? Jeder schreibt seinen Namen auf einen Zettel, gezeigt wird erst am Ende.', offen: p.offeneAbstimmung })
   } else {
     p.runde += 1
     melde(p, 'diskussion', { runde: p.runde, von: p.rundenHeute })
@@ -186,7 +210,7 @@ export function stimme(p, von, fuer) {
   if (!lebt(p, von)) throw new Error(`${von} ist nicht im Raum`)
   if (fuer != null && (!lebt(p, fuer) || fuer === von)) throw new Error(`Ungültige Stimme von ${von} für ${fuer}`)
   p.stimmen[von] = fuer
-  melde(p, 'stimme', { von, fuer }, p.geheimeAbstimmung ? [von] : [...p.lebende])
+  melde(p, 'stimme', { von, fuer }, p.offeneAbstimmung ? [...p.lebende] : [von])   // geheim: nur der Waehler sieht seinen Zettel
 }
 
 export function abstimmungSchliessen(p) {
@@ -195,6 +219,8 @@ export function abstimmungSchliessen(p) {
   if (fehlt.length) throw new Error(`Es fehlen Stimmen von: ${fehlt.join(', ')}`)
   const erg = auswerten(p.stimmen, p.lebende)
   p.phase = 'ergebnis'
+  // Die Zettel werden aufgedeckt: alle Stimmen auf einmal
+  melde(p, 'zettelwahl', { stimmen: { ...p.stimmen } })
   if (erg.eingesperrt) {
     p.lebende = p.lebende.filter((n) => n !== erg.eingesperrt)
     p.keller.push(erg.eingesperrt)

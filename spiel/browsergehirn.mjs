@@ -18,8 +18,9 @@ export function browserGehirn(name, rolle, { sende }) {
     name, rolle,
     abend: (sicht, lebende) => frage({ art: 'sagen', pflicht: true, andere: andere(lebende) }),
     diskussion: (sicht, lebende) => frage({ art: 'sagen', pflicht: false, andere: andere(lebende) }),
-    nacht: (sicht, lebende, { orte }) => frage({ art: 'nacht', aufgabe: rolle === SCHATTEN ? 'holen' : rolle === SCHLUESSEL ? 'pruefen' : 'verstecken', orte, optionen: andere(lebende) }),
+    nacht: (sicht, lebende, { orte, ziele }) => frage({ art: 'nacht', aufgabe: rolle === SCHATTEN ? 'holen' : rolle === SCHLUESSEL ? 'pruefen' : 'verstecken', orte, optionen: ziele ?? andere(lebende) }),
     untersuchen: (sicht, lebende, { orte }) => frage({ art: 'untersuchen', orte }),
+    zeigen: (sicht, lebende, { ergebnis }) => frage({ art: 'zeigen', ergebnis: ergebnis.text }),
     abstimmung: (sicht, lebende) => frage({ art: 'stimme', optionen: andere(lebende) }),
     merkePruefung() {},
 
@@ -36,18 +37,21 @@ export function browserGehirn(name, rolle, { sende }) {
           if (was.pflicht) return 'Sag zumindest einen Satz'
           ergebnis = { art: 'schweigt' }
         } else {
+          if (a.an && !was.andere.includes(a.an)) return `${a.an} ist nicht im Raum. Ansprechen kannst du: ${was.andere.join(', ')} (oder niemanden)`
           ergebnis = { art: 'sagt', text, an: was.andere.includes(a.an) ? a.an : null, behauptet: behauptungAus(text) }
         }
       } else if (was.art === 'nacht') {
-        if (!was.orte.includes(a.platz)) return 'Such dir einen Platz aus'
-        if (was.aufgabe !== 'verstecken' && !was.optionen.includes(a.ziel)) return 'Ungültiges Ziel'
+        if (!was.orte.includes(a.platz)) return `${a.platz ? `„${a.platz}“ ist kein Platz` : 'Du brauchst einen Platz'}. Plätze: ${was.orte.join(', ')}`
+        if (was.aufgabe !== 'verstecken' && !was.optionen.includes(a.ziel)) return `${a.ziel ? `${a.ziel} kannst du heute nicht ${was.aufgabe === 'holen' ? 'holen' : 'prüfen'}` : `Du musst auch sagen, wen du ${was.aufgabe === 'holen' ? 'holst' : 'prüfst'}`}. Möglich: ${was.optionen.join(', ')}`
         ergebnis = { platz: a.platz, ziel: was.aufgabe === 'verstecken' ? undefined : a.ziel }
       } else if (was.art === 'untersuchen') {
-        if (a.ort != null && !was.orte.includes(a.ort)) return 'Diesen Ort gibt es nicht'
+        if (a.ort != null && !was.orte.includes(a.ort)) return `„${a.ort}“ kannst du nicht untersuchen. Möglich: ${was.orte.join(', ')} oder nichts`
         ergebnis = a.ort ? { ort: a.ort } : null
+      } else if (was.art === 'zeigen') {
+        ergebnis = !!a.zeigen
       } else if (was.art === 'stimme') {
-        if (a.fuer != null && !was.optionen.includes(a.fuer)) return 'Ungültige Stimme'
-        ergebnis = { fuer: a.fuer ?? null, begruendung: String(a.begruendung || '').trim().slice(0, 200) }
+        if (a.fuer != null && !was.optionen.includes(a.fuer)) return `${a.fuer} steht nicht zur Wahl (nicht im Raum oder du selbst). Möglich: ${was.optionen.join(', ')} oder niemand`
+        ergebnis = { fuer: a.fuer ?? null }
       } else return 'Unbekannte Eingabe'
       const { loese } = offen
       offen = null

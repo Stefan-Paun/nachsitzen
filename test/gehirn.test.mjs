@@ -24,7 +24,7 @@ test('Systemprompt: nur die eigene Rolle, Grenzen drin, Platzhalter ersetzt', ()
   assert.ok(!s.includes('Du bist der Schlüsselträger'))
   assert.ok(!s.includes('{{'))
   assert.ok(s.includes('kein Blut') && s.includes('Suizid'))
-  assert.ok(s.includes('Stefan ist ein echter Mitschüler'))
+  assert.ok(!s.includes('echter Mitschüler'), 'der Mensch wird nicht hervorgehoben')
   assert.ok(s.includes('Mitspieler: Mira, Jonas, Lea, Tarik, Stefan'))
   const s2 = systemPrompt(f, SCHUELER, NAMEN, null)
   assert.ok(s2.includes('Du bist ein normaler Schüler') && !s2.includes('echter Mitschüler'))
@@ -41,6 +41,7 @@ test('Werkzeuge je Phase und Rolle, Namen als enum', () => {
   assert.equal(werkzeuge('nacht', SCHUELER, andere)[0].input_schema.properties.platz.enum.length, 4)
   const ab = werkzeuge('abstimmung', SCHUELER, andere)[0]
   assert.deepEqual(ab.input_schema.properties.fuer.enum, ['Mira', 'Jonas', 'niemand'])
+  assert.ok(!('begruendung' in ab.input_schema.properties), 'geheime Zettel ohne laute Begründung')
   assert.ok(werkzeuge('nacht', SCHATTEN, andere)[0].strict)
 })
 
@@ -70,20 +71,21 @@ test('Claude-Gehirn: Werkzeug-Aufruf wird zur Aktion, Ziel wird geprueft, Text g
   const { aufrufe, anfrage } = fakeAnfrage([
     { werkzeug: { name: 'sprechen', eingabe: { text: 'Tarik, du warst nicht an deinem Platz.', an: 'Tarik' } } },
     { werkzeug: { name: 'sprechen', eingabe: { text: 'x'.repeat(1000), an: 'Niemand-Existiert' } } },
-    { werkzeug: { name: 'abstimmen', eingabe: { fuer: 'niemand', begruendung: 'Zu wenig.' } } },
-    { werkzeug: { name: 'abstimmen', eingabe: { fuer: 'Mira', begruendung: 'Sie lenkt ab.' } } },
+    { werkzeug: { name: 'abstimmen', eingabe: { fuer: 'niemand' } } },
+    { werkzeug: { name: 'abstimmen', eingabe: { fuer: 'Mira' } } },
   ])
   const g = claudeGehirn(ladeFigur('Lea'), SCHUELER, { anfrage, mitspieler: NAMEN, spieler: 'Stefan', zufall: zufall(1) })
   p.phase = 'diskussion'
   const a1 = await g.diskussion(P.verlaufFuer(p, 'Lea'), p.lebende)
   assert.deepEqual(a1, { art: 'sagt', text: 'Tarik, du warst nicht an deinem Platz.', an: 'Tarik', behauptet: null })
+  assert.ok(!aufrufe[0].system.includes('echter Mitschüler'), 'der Mensch wird im Prompt nicht hervorgehoben')
   assert.ok(aufrufe[0].system.includes('Du bist Lea'))
   assert.ok(aufrufe[0].nachricht.includes('Noch im Raum: Mira, Jonas, Lea, Tarik, Nora, Stefan'))
   assert.deepEqual(aufrufe[0].tools.map((t) => t.name), ['sprechen', 'schweigen'])
   const a2 = await g.diskussion([], p.lebende)
-  assert.equal(a2.text.length, 400); assert.equal(a2.an, null)
+  assert.ok(a2.text.length <= 400); assert.equal(a2.an, null)
   const a3 = await g.abstimmung([], p.lebende)
-  assert.deepEqual(a3, { art: 'stimme', fuer: null, begruendung: 'Zu wenig.' })
+  assert.deepEqual(a3, { art: 'stimme', fuer: null })
   const a4 = await g.abstimmung([], p.lebende)
   assert.equal(a4.fuer, 'Mira')
 })
@@ -106,6 +108,16 @@ test('Claude-Gehirn: Ablehnung, Fehler und falsches Werkzeug fallen harmlos zuru
   assert.ok(['Mira', 'Nora'].includes(n.ziel)); assert.ok(P.ORT_NAMEN.includes(n.platz))
   assert.deepEqual(await g.abend([], lebende), { art: 'sagt', text: 'Ist hier noch jemand wach?', an: null })
   assert.equal(log.length, 5)
+  // Nacht: nur erlaubte Ziele (Nacht-1-Schutz kommt aus der Schleife)
+  const g2 = claudeGehirn(ladeFigur('Lea'), SCHATTEN, { anfrage: async (req) => ({ werkzeug: { name: 'holen', eingabe: { platz: 'Tür', ziel: req.tools[0].input_schema.properties.ziel.enum[0] } } }), mitspieler: NAMEN, zufall: zufall(3) })
+  assert.deepEqual(await g2.nacht([], ['Lea', 'Mira', 'Stefan'], { orte: P.ORT_NAMEN, ziele: ['Mira'] }), { platz: 'Tür', ziel: 'Mira' })
+  // Vorzeigen: belastende Ergebnisse zeigt ein Schüler meist, der Schatten kaum
+  let ja = 0; for (let i = 0; i < 50; i++) if (g2.zeigen([], [], { ergebnis: { ort: 'Tafel', namen: ['Mira'], durchgang: false } })) ja++
+  assert.ok(ja < 25, `Schatten zeigt zu oft (${ja})`)
+  const g3 = claudeGehirn(ladeFigur('Nora'), SCHUELER, { anfrage: async () => ({}), mitspieler: NAMEN, zufall: zufall(4) })
+  ja = 0; for (let i = 0; i < 50; i++) if (g3.zeigen([], [], { ergebnis: { ort: 'Tafel', namen: ['Mira'], durchgang: false } })) ja++
+  assert.ok(ja > 25, `Schüler zeigt zu selten (${ja})`)
+  assert.equal(g3.zeigen([], [], { ergebnis: { ort: 'Tafel', namen: ['A', 'B', 'C', 'D'], durchgang: false } }), false, 'vier Namen belasten niemanden')
   assert.ok(log.some((m) => m.includes('refusal')) && log.some((m) => m.includes('Netz weg')))
 })
 

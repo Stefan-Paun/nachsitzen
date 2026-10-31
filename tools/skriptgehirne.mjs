@@ -26,10 +26,10 @@ export function skriptGehirn(name, rolle, zufall) {
     abend(sicht, lebende) {
       return { text: zufall.aus(['Ist jemand bei der Tür gewesen?', 'Mir ist kalt.', 'Wer hat das Licht gesehen?', 'Ich war die ganze Zeit hier.']) }
     },
-    nacht(sicht, lebende, { orte }) {
+    nacht(sicht, lebende, { orte, ziele }) {
       const andere = lebende.filter((n) => n !== name)
       meinPlatz = zufall.aus(orte)
-      if (rolle === SCHATTEN) return { platz: meinPlatz, ziel: lauteste(sicht, andere) }
+      if (rolle === SCHATTEN) return { platz: meinPlatz, ziel: lauteste(sicht, ziele ?? andere) }
       if (rolle === SCHLUESSEL) {
         const offen = andere.filter((n) => !(n in geprueft))
         return { platz: meinPlatz, ziel: offen.length ? zufall.aus(offen) : zufall.aus(andere) }
@@ -44,6 +44,7 @@ export function skriptGehirn(name, rolle, zufall) {
       const treffer = fund && orte.find((o) => fund.text.includes(o))
       return { ort: treffer && zufall.zahl() < 0.6 ? treffer : (zufall.zahl() < 0.25 ? KLASSENBUCH : zufall.aus(orte.filter((o) => o !== KLASSENBUCH))) }
     },
+    zeigen(sicht, lebende, { ergebnis }) { return rolle !== SCHATTEN && (ergebnis.namen?.length > 0 || ergebnis.durchgang) && zufall.zahl() < 0.6 },
     diskussion(sicht, lebende) {
       const andere = lebende.filter((n) => n !== name)
       const bekannt = Object.entries(geprueft).find(([n, s]) => s && lebende.includes(n))
