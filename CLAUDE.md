@@ -10,7 +10,8 @@ Werwolf-artiges Spiel: Stefan + fünf Claude-Figuren nachts in einer Schule, ein
 
 ## Aufbau
 
-- `spiel/partie.mjs`: Regeln. Jedes Ereignis hat `sichtbar` (wer es sehen darf); `verlaufFuer(name)` ist der Kontext einer Figur. Rollen, Nachtwahl und Prüfung bleiben privat.
+- `spiel/partie.mjs`: Regeln. Jedes Ereignis hat `sichtbar` (wer es sehen darf); `verlaufFuer(name)` ist der Kontext einer Figur. Rollen, Platz, Nachtwahl, Prüfung, Beobachtungen und Untersuchungsergebnisse bleiben privat.
+- `spiel/welt.mjs`: die Wahrheit hinter dem Gerede: Orte, Weg des Schattens, Beobachtungen, Funde, Tagesereignisse, Untersuchungen. Alles, was daraus kommt, muss wahr sein (Tests prüfen das).
 - `spiel/gehirn.mjs`: Claude-Gehirn (Systemprompt aus `prompts/` + `figuren/`, Werkzeuge je Phase, Rückfall bei Unsinn). Gleiche Schnittstelle wie `tools/skriptgehirne.mjs`.
 - `spiel/claude.mjs`: Messages-API per fetch. Haiku 5.5: kein Prefill, keine temperature, `thinking: disabled` + `effort: low`, Refusal ist HTTP 200. Nullable Enums als `anyOf`, nicht `type: [..., 'null']`.
 - `spiel/kosten.mjs`: Tageszähler mit Deckel. `spiel/schleife.mjs`: eine Schleife für alle Gehirne.
