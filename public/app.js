@@ -210,7 +210,7 @@ function zeigeTafel() {
 // --- Hefte: nach der Partie zeigen, wie die Figuren dich sehen ---------------------------
 function zeigeHefte(eintraege) {
   for (const [n, e] of Object.entries(eintraege)) {
-    const k = karte('heft', `${n} schreibt in ihr Heft`)
+    const k = karte('heft', `${n} schreibt ins Heft`)
     kartenZeile(k, e.eintrag)
     const v = Object.entries(e.vertrauen || {}).map(([p, w]) => `${p === status?.spieler ? 'dir' : p} ${w > 0 ? '+' : ''}${w}`).join(' · ')
     if (v) { const d = document.createElement('div'); d.className = 'vertrauen'; d.textContent = `Vertrauen: ${v}`; k.appendChild(d) }
