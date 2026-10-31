@@ -15,6 +15,7 @@ import { apiSchluessel } from '../spiel/schluessel.mjs'
 import { kostenRechner } from '../spiel/kosten.mjs'
 import { SCHATTEN, SCHLUESSEL } from '../spiel/rollen.mjs'
 import { hefteSpeicher } from '../spiel/hefte.mjs'
+import { spurentafelText } from '../spiel/spurentafel.mjs'
 
 const argv = process.argv.slice(2)
 const zuschauen = argv.includes('--zuschauen')
@@ -79,10 +80,16 @@ if (spieler) console.log(`Du bist ${spieler}. Deine Rolle: ${ROLLE[p.rollen[spie
 else for (const n of namen) console.log(`  ${n}: ${ROLLE[p.rollen[n]]}`)
 console.log('(Abstimmung: Name tippen oder leer lassen. Eine Nachricht beginnt mit einem Namen, um jemanden direkt anzusprechen.)\n')
 
-const sichtbar = (e) => zuschauen || e.sichtbar.includes(spieler)
+// Als Geist (verschwunden oder im Keller) sieht man alles, wie im Browser
+const sichtbar = (e) => zuschauen || e.sichtbar.includes(spieler) || !p.lebende.includes(spieler)
+const gesehen = []
 let letztePhase = null
 const beobachter = (e) => {
   if (!sichtbar(e) || e.art === 'rolle') return
+  gesehen.push(e)
+  if ((e.art === 'verschwunden' || e.art === 'eingesperrt') && e.name === spieler) console.log('  → Du bist raus. Als Geist siehst du ab jetzt alles.')
+  // Vor jeder Gespraechsrunde die Tafel: was sicher ist, gegen das, was behauptet wird
+  if (e.art === 'diskussion' || e.art === 'abstimmung') console.log(`\n${spurentafelText(gesehen, spieler ?? '', p.lebende)}\n`)
   if (e.art === 'ende') {
     console.log(`\n=== ENDE: ${e.sieger === 'schueler' ? 'Die Schüler haben gewonnen' : 'Der Schatten hat gewonnen'}. Der Schatten war ${e.schatten}. ===`)
     return

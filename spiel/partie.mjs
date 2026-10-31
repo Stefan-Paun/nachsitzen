@@ -130,7 +130,7 @@ export function schattenWaehlt(p, ziel, verwischen = false) {
   if (verwischen && !darfVerwischen(p)) throw new Error('Die Spur lässt sich nur einmal pro Partie verwischen')
   p.nachtwahl = ziel
   if (verwischen) { p.verwischt = true; p.verwischtBenutzt = true }
-  melde(p, 'schatten-waehlt', { ziel, verwischt: !!verwischen }, [s])
+  melde(p, 'schatten-waehlt', { wer: s, ziel, verwischt: !!verwischen }, [s])
 }
 
 export function schluesselPrueft(p, ziel) {
@@ -140,7 +140,7 @@ export function schluesselPrueft(p, ziel) {
   if (ziel === k || !lebt(p, ziel)) throw new Error(`Ungültiges Ziel: ${ziel}`)
   const rolle = p.rollen[ziel]
   p.pruefung = { wer: k, ziel, rolle }
-  melde(p, 'pruefung', { ziel, istSchatten: rolle === SCHATTEN }, [k])
+  melde(p, 'pruefung', { wer: k, ziel, istSchatten: rolle === SCHATTEN }, [k])
   return rolle === SCHATTEN
 }
 

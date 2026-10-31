@@ -95,7 +95,7 @@ export function beobachtungen({ plaetze, lebende, schatten, opfer, zufall, verwi
 const SPUR_SAETZE = [
   (opfer, ort, r, seite) => `Eine Tintenspur führt vom Platz von ${opfer} (${bei(ort)}) ${RICHTUNG[r]}, erst dick, dann nur noch Tropfen. Der Schatten kam also von dort: ${seite}.`,
   (opfer, ort, r, seite) => `Vom Platz von ${opfer} (${bei(ort)}) ziehen sich Tintentropfen ${RICHTUNG[r]} über den Boden, immer blasser. Von dort ist der Schatten gekommen: ${seite}.`,
-  (opfer, ort, r, seite) => `Jemand hat Tinte verschleppt: Die Tropfen beginnen bei ${opfer} (${bei(ort)}) und laufen ${RICHTUNG[r]} aus. Also kam der Schatten von ${seite}.`,
+  (opfer, ort, r, seite) => `Jemand hat Tinte verschleppt: Die Tropfen beginnen bei ${opfer} (${bei(ort)}) und laufen ${RICHTUNG[r]} aus. Also kam der Schatten von einem dieser Plätze: ${seite}.`,
 ]
 const NOTIZ_SAETZE = [
   (opfer, seite) => `Unter dem Tintenfleck ein halb zerrissener Zettel in der Handschrift von ${opfer}: „…kommt ${seite}, ich glaub es ist…“`,
@@ -116,7 +116,8 @@ export function funde({ plaetze, schatten, opfer, zufall, verwischt = false }) {
   if (pS === pO) liste.push({ typ: 'spur', ort: ortO, richtung: 'hier', text: `Die Tintenspur macht nur einen kleinen Bogen: Sie beginnt am Platz von ${opfer} (${bei(ortO)}) und endet gleich daneben. Der Schatten stand also am selben Platz wie ${opfer}.` })
   else {
     const r = pS < pO ? 'tuer' : 'fenster'
-    const seite = ORT_NAMEN.filter((o, i) => (r === 'tuer' ? i < pO : i > pO)).map(bei).join(' oder ')
+    const moeglich = ORT_NAMEN.filter((o, i) => (r === 'tuer' ? i < pO : i > pO))
+    const seite = moeglich.length > 1 ? `${moeglich.slice(0, -1).join(', ')} oder ${moeglich.at(-1)}` : moeglich[0]
     liste.push({ typ: 'spur', ort: ortO, richtung: r, text: zufall.aus(SPUR_SAETZE)(opfer, ortO, r, seite) })
   }
   const weg = durchquert(plaetze[schatten], plaetze[opfer])

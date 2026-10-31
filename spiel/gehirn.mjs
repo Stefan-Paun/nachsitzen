@@ -42,6 +42,8 @@ export function systemPrompt(figur, rolle, mitspieler, spieler, heft = '') {
   return SYSTEM_VORLAGE.replace(/\{\{(\w+)\}\}/g, (_, k) => ersetze[k] ?? '')
 }
 
+const fremd = (wer, ich) => !!wer && wer !== ich
+
 // Ereignisse aus Sicht der Figur als lesbarer Verlauf.
 export function verlaufAlsText(ereignisse, ich) {
   const zeilen = []
@@ -49,11 +51,12 @@ export function verlaufAlsText(ereignisse, ich) {
     switch (e.art) {
       case 'start': zeilen.push(`[Abend] ${e.text}`); break
       case 'nacht': zeilen.push(`[Nacht ${e.nacht}] ${e.text}`); break
-      case 'platz': zeilen.push(`[Nacht ${e.nacht}] Du stellst dich ${bei(e.ort)} hin.`); break
-      case 'schatten-waehlt': zeilen.push(`[Nacht ${e.nacht}] Du schleichst zu ${e.ziel} und zurück.${e.verwischt ? ' Du hast dir Zeit genommen und die Tinte mit dem Ärmel verwischt.' : ''}`); break
+      // Fremde private Zeilen sieht nur ein Zuschauer oder Geist (im Terminal); eine Figur bekommt nur ihre eigenen
+      case 'platz': zeilen.push(`[Nacht ${e.nacht}] ${fremd(e.wer, ich) ? `${e.wer} stellt sich` : 'Du stellst dich'} ${bei(e.ort)} hin.`); break
+      case 'schatten-waehlt': zeilen.push(`[Nacht ${e.nacht}] ${fremd(e.wer, ich) ? `${e.wer} schleicht` : 'Du schleichst'} zu ${e.ziel} und zurück.${e.verwischt ? (fremd(e.wer, ich) ? ' Die Tinte wird mit dem Ärmel verwischt.' : ' Du hast dir Zeit genommen und die Tinte mit dem Ärmel verwischt.') : ''}`); break
       case 'wahrheit': break   // nur fuer die Anzeige am Ende
-      case 'pruefung': zeilen.push(`[Nacht ${e.nacht}] Du prüfst ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`); break
-      case 'beobachtung': zeilen.push(`[Nacht ${e.nacht}, was du mitbekommen hast] ${e.text}`); break
+      case 'pruefung': zeilen.push(`[Nacht ${e.nacht}] ${fremd(e.wer, ich) ? `${e.wer} prüft` : 'Du prüfst'} ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`); break
+      case 'beobachtung': zeilen.push(`[Nacht ${e.nacht}, was ${fremd(e.wer, ich) ? `${e.wer} mitbekommen hat` : 'du mitbekommen hast'}] ${e.text}`); break
       case 'beweis': zeilen.push(`[BEWEIS, vom Spiel geprüft, wahr] ${e.von === ich ? 'Du zeigst' : `${e.von} zeigt`} das Ergebnis der Untersuchung ${e.ort === KLASSENBUCH ? 'im Klassenbuch' : bei(e.ort)}: ${e.text}`); break
       case 'zettelwahl': zeilen.push(`[Zettel aufgedeckt] ${Object.entries(e.stimmen).map(([v, f]) => `${v === ich ? 'du' : v} → ${f ?? 'niemand'}`).join(', ')}`); break
       case 'verschwunden': zeilen.push(`[Morgen ${e.nacht}] ${e.text}`); break
@@ -61,7 +64,7 @@ export function verlaufAlsText(ereignisse, ich) {
       case 'zettel': zeilen.push(`[Morgen ${e.nacht}] Ein Zettel liegt unter der Tür, alle lesen ihn: „${e.text}“`); break
       case 'hausmeister': case 'glocke': zeilen.push(`[Morgen ${e.nacht}] ${e.text}`); break
       case 'untersucht': zeilen.push(`${e.von === ich ? 'Du untersuchst' : `${e.von} untersucht`} ${e.ort === KLASSENBUCH ? 'das Klassenbuch' : `den Platz ${bei(e.ort)}`}.`); break
-      case 'ergebnis': zeilen.push(`[Nur du weißt das] ${e.text}`); break
+      case 'ergebnis': zeilen.push(`[${fremd(e.wer, ich) ? `Nur ${e.wer} weiß das` : 'Nur du weißt das'}] ${e.text}`); break
       case 'diskussion': zeilen.push(`[Gespräch, Runde ${e.runde}${e.von ? ` von ${e.von}` : ''}]`); break
       case 'sagt': zeilen.push(`${e.von === ich ? 'Du' : e.von}${e.an ? ` (zu ${e.an === ich ? 'dir' : e.an})` : ''}: ${e.text}`); break
       case 'schweigt': zeilen.push(`${e.von === ich ? 'Du schweigst' : `${e.von} schweigt`}.`); break

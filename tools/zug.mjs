@@ -8,12 +8,14 @@
 //   node tools/zug.mjs <port> --zeigen ja|nein             (eigenes Untersuchungsergebnis allen vorzeigen)
 //   node tools/zug.mjs <port> --stimme Nora|niemand        (geheim; wird erst am Ende aufgedeckt)
 //   node tools/zug.mjs <port> --hefte                 nach dem Ende: die Hefte der Figuren
+//   node tools/zug.mjs <port> --tafel                 Spurentafel: was ich über die letzte Nacht sicher weiß
 // Jeder Aufruf druckt danach, was seit dem letzten Aufruf passiert ist (aus Sicht des Spielers).
 
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { verlaufAlsText } from '../spiel/gehirn.mjs'
+import { spurentafelText } from '../spiel/spurentafel.mjs'
 
 const [port, ...rest] = process.argv.slice(2)
 if (!port) { console.error('Port fehlt'); process.exit(2) }
@@ -49,6 +51,13 @@ else if (arg('--untersuchen')) antwort = await post('/aktion', { ort: arg('--unt
 else if (arg('--zeigen')) antwort = await post('/aktion', { zeigen: arg('--zeigen') !== 'nein' })
 else if (arg('--stimme')) antwort = await post('/aktion', { fuer: arg('--stimme') === 'niemand' ? null : arg('--stimme') })
 if (antwort && !antwort.ok) console.log(`ABGELEHNT: ${antwort.fehler}`)
+
+if (arg('--tafel')) {
+  const v = await fetch(basis + '/verlauf?ab=0').then(json)
+  if (!v.status) { console.log('Keine Partie. Starte mit --neu.'); process.exit(0) }
+  console.log(spurentafelText(v.ereignisse, v.status.spieler ?? '', v.status.lebende))
+  process.exit(0)
+}
 
 if (arg('--hefte')) {
   // Die Figuren schreiben nach dem Ende noch (ein Aufruf je Figur) - darauf warten
@@ -88,6 +97,7 @@ if (status.phase === 'ende') { console.log(`\n--- Partie vorbei (${status.nacht}
 const w = status.warte
 console.log(`\n--- Noch im Raum: ${status.lebende.join(', ')} · Phase: ${status.phase} · Nacht ${status.nacht}`)
 if (!w) console.log('--- Die anderen sind dran. Nochmal aufrufen.')
+else if (w.art === 'sagen' || w.art === 'untersuchen' || w.art === 'stimme') console.log('--- Übersicht: --tafel')
 else if (w.art === 'sagen') console.log(`--- DU BIST DRAN: --sagen "..." [--an ${w.andere.join('|')}]${w.pflicht ? ' (Pflicht)' : ' oder --schweigen'}`)
 else if (w.art === 'nacht') console.log(`--- NACHT: --platz ${w.orte.join('|')}${w.aufgabe !== 'verstecken' ? ` --ziel ${w.optionen.join('|')}  (${w.aufgabe === 'holen' ? 'Pflicht: wen du holst' : 'Pflicht: wen du prüfst'})` : ''}${w.verwischen ? ' [--verwischen: einmalig die Spur verwischen]' : ''}`)
 else if (w.art === 'untersuchen') console.log(`--- UNTERSUCHEN (noch ${w.uebrig ?? '?'}× in dieser Partie): --untersuchen ${w.orte.join('|')}|nichts`)

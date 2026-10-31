@@ -104,15 +104,15 @@ function zeigeEreignis(e) {
     case 'start': regie(e.text); break
     case 'rolle': if (e.name === ich) $('meinerolle').textContent = `Deine Rolle: ${ROLLE[e.rolle]}. ${ROLLE_ERKLAERT[e.rolle] || ''}`; break
     case 'nacht': karten = { privat: null, morgen: null }; regie(`Nacht ${e.nacht}. ${e.text}`, 'dunkel'); ton.klang('nacht'); vielleichtErschrecken(); break
-    case 'platz': if (e.wer === ich) regie(`Du stellst dich ${BEI[e.ort] || e.ort} hin.`, 'geheim'); break
-    case 'schatten-waehlt': regie(`Du schleichst zu ${e.ziel} und zurück.${e.verwischt ? ' Du verwischst die Tinte mit dem Ärmel.' : ''}`, 'geheim'); break
+    case 'platz': regie(`${e.wer === ich ? 'Du stellst dich' : `${e.wer} stellt sich`} ${BEI[e.ort] || e.ort} hin.`, 'geheim'); break
+    case 'schatten-waehlt': regie(e.wer && e.wer !== ich ? `${e.wer} ist der Schatten und schleicht zu ${e.ziel}.${e.verwischt ? ' Die Tinte wird mit dem Ärmel verwischt.' : ''}` : `Du schleichst zu ${e.ziel} und zurück.${e.verwischt ? ' Du verwischst die Tinte mit dem Ärmel.' : ''}`, 'geheim'); break
     case 'wahrheit': {
       const k = karte('morgen', 'Die Wahrheit')
       kartenZeile(k, Object.entries(e.rollen).map(([n, r]) => `${n === ich ? 'Du' : n}: ${ROLLE[r]}`).join(' · '), 'schwer')
       for (const n of e.naechte) kartenZeile(k, `Nacht ${n.nacht}: ${Object.entries(n.plaetze).map(([k2, o]) => `${k2 === ich ? 'du' : k2} ${BEI[o] || o}`).join(', ')}. ${n.schatten} holt ${n.opfer}${n.verwischt ? ' und verwischt die Spur' : ''}.`)
       break
     }
-    case 'pruefung': regie(`Du prüfst ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`, 'geheim'); break
+    case 'pruefung': regie(`${e.wer && e.wer !== ich ? `${e.wer} prüft` : 'Du prüfst'} ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`, 'geheim'); break
     case 'beobachtung':
       if (e.wer !== ich && !status?.zuschauen && !status?.geist) break
       if (!karten.privat) karten.privat = karte('privat', `Nacht ${e.nacht} · was ${e.wer === ich ? 'du' : e.wer} mitbekommen ${e.wer === ich ? 'hast' : 'hat'}`)
@@ -127,7 +127,7 @@ function zeigeEreignis(e) {
     case 'untersucht': blase(e.von, `${e.von === ich ? 'Du untersuchst' : 'untersucht'} ${e.ort === status?.klassenbuch ? 'das Klassenbuch' : `den Platz ${BEI[e.ort] || e.ort}`}.`, { still: true }); break
     case 'beweis': regie(`Beweis, vorgezeigt von ${e.von === ich ? 'dir' : e.von} (vom Spiel geprüft): ${e.text}`, 'beweis'); break
     case 'zettelwahl': regie(`Zettel aufgedeckt: ${Object.entries(e.stimmen).map(([v, f]) => `${v === ich ? 'du' : v} → ${f ?? 'niemand'}`).join(' · ')}`, 'schwer'); break
-    case 'ergebnis': regie(`Nur du weißt das: ${e.text}`, 'geheim'); break
+    case 'ergebnis': regie(`${e.wer && e.wer !== ich ? `Nur ${e.wer} weiß das` : 'Nur du weißt das'}: ${e.text}`, 'geheim'); break
     case 'diskussion': regie(`Gespräch, Runde ${e.runde}${e.von ? ` von ${e.von}` : ''}`); if (e.runde === 1) ton.klang('morgen'); break
     case 'sagt': sprecher = e.von; blase(e.von, e.text, { an: e.an }); if (e.von !== ich) ton.klang('stimme'); break
     case 'schweigt': blase(e.von, `${e.von === ich ? 'Du schweigst' : `${e.von} schweigt`}.`, { still: true }); break
@@ -154,12 +154,13 @@ function merke(e) {
     case 'beobachtung':
       if (e.wer === ich || status?.zuschauen || status?.geist) {
         if (e.typ === 'gesehen') wissen.plaetze[e.name] = e.ort
+        if (e.durchgang) wissen.durchgang.add(e.ort)
         if (e.typ === 'gesehen-alle') for (const n of e.namen || []) wissen.plaetze[n] = e.ort
         wissen.zeilen.push({ k: 'geheim', t: (e.wer !== ich ? `${e.wer} sieht: ` : '') + e.text })
       }
       break
-    case 'schatten-waehlt': wissen.zeilen.push({ k: 'geheim', t: `Du holst ${e.ziel}.` }); break
-    case 'pruefung': wissen.zeilen.push({ k: 'geheim', t: `Geprüft: ${e.ziel} ist ${e.istSchatten ? 'DER SCHATTEN' : 'kein Schatten'}.` }); break
+    case 'schatten-waehlt': wissen.zeilen.push({ k: 'geheim', t: `${e.wer && e.wer !== ich ? `${e.wer} holt` : 'Du holst'} ${e.ziel}.` }); break
+    case 'pruefung': wissen.zeilen.push({ k: 'geheim', t: `${e.wer && e.wer !== ich ? `${e.wer} prüft` : 'Geprüft'}: ${e.ziel} ist ${e.istSchatten ? 'DER SCHATTEN' : 'kein Schatten'}.` }); break
     case 'verschwunden': wissen.opfer = e.name; break
     case 'fund':
       wissen.funde.push(e.text)
@@ -170,7 +171,7 @@ function merke(e) {
     case 'hausmeister': case 'glocke': wissen.funde.push(e.text); break
     case 'sagt': if (e.behauptet && e.nacht === wissen.nacht) wissen.behauptet[e.von] = e.behauptet; break
     case 'ergebnis':
-      if (e.ort === status?.klassenbuch) wissen.plaetze[e.name] = e.platz
+      if (e.ort === status?.klassenbuch) { if (e.name && e.platz) wissen.plaetze[e.name] = e.platz }
       else { for (const n of e.namen || []) wissen.plaetze[n] = e.ort; if (e.durchgang) wissen.durchgang.add(e.ort) }
       wissen.zeilen.push({ k: 'geheim', t: e.text })
       break

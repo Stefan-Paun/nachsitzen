@@ -59,7 +59,7 @@ Die Figuren laufen auf Claude Haiku 5.5. Eine Partie braucht 40 bis 80 Aufrufe u
 | Figuren schweigen, Rückfall-Meldungen im Terminal | Tagesdeckel erreicht oder Netz weg; `npm start` zeigt es |
 | Port belegt | `NACHSITZEN_PORT=4801 npm start` |
 
-Mitspielen geht auch ohne Browser: `node tools/zug.mjs 4800 --neu DeinName`, dann `node tools/zug.mjs 4800` und die Befehle, die es vorschlägt.
+Mitspielen geht auch ohne Browser: `node tools/zug.mjs 4800 --neu DeinName`, dann `node tools/zug.mjs 4800` und die Befehle, die es vorschlägt; `--tafel` zeigt die Spurentafel als Text. `npm run spiele` spielt ganz im Terminal und blendet die Tafel vor jedem Gespräch ein.
 
 ## Was passiert
 
@@ -89,12 +89,12 @@ Die Hefte liegen außerhalb des Repos unter `~/.local/share/nachsitzen/hefte/`. 
 ## Entwickeln
 
 ```
-npm test                          # 49 Tests ohne Netz: Regeln, Welt, Gehirn mit Fake-API, Server, Simulation
+npm test                          # 51 Tests ohne Netz: Regeln, Welt, Gehirn mit Fake-API, Server, Simulation
 npm run simuliere                 # 100 Partien mit Skript-Gehirnen, Siegquoten
 npm run spiele -- --zuschauen     # eine echte Partie im Terminal (kostet Cent)
 ```
 
-Aufbau: `spiel/partie.mjs` (Regeln; jedes Ereignis weiß, wer es sehen darf), `spiel/welt.mjs` (die Wahrheit hinter dem Gerede: Plätze, Spuren, Beobachtungen), `spiel/gehirn.mjs` (Claude-Figur mit eigenem Kontext und Werkzeug-Aufrufen), `spiel/hefte.mjs` (Erinnerung), `server.mjs` (lokaler Server, SSE), `public/` (Browser, Pixelszene). Der Plan mit allen Entscheidungen: [docs/PLAN.md](docs/PLAN.md).
+Aufbau: `spiel/partie.mjs` (Regeln; jedes Ereignis weiß, wer es sehen darf), `spiel/welt.mjs` (die Wahrheit hinter dem Gerede: Plätze, Spuren, Beobachtungen), `spiel/gehirn.mjs` (Claude-Figur mit eigenem Kontext und Werkzeug-Aufrufen), `spiel/hefte.mjs` (Erinnerung), `spiel/spurentafel.mjs` (die Spurentafel als Text für Terminal und `zug.mjs --tafel`), `server.mjs` (lokaler Server, SSE), `public/` (Browser, Pixelszene). Der Plan mit allen Entscheidungen: [docs/PLAN.md](docs/PLAN.md).
 
 Harte Grenzen für die Figuren stehen in `prompts/system.md`: Tinte statt Blut, nichts zu Selbstverletzung, nichts Sexuelles, keine echten Personen. Gruselig darf es sein, grausam nicht.
 
