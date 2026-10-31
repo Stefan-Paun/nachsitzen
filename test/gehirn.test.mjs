@@ -76,7 +76,7 @@ test('Claude-Gehirn: Werkzeug-Aufruf wird zur Aktion, Ziel wird geprueft, Text g
   const g = claudeGehirn(ladeFigur('Lea'), SCHUELER, { anfrage, mitspieler: NAMEN, spieler: 'Stefan', zufall: zufall(1) })
   p.phase = 'diskussion'
   const a1 = await g.diskussion(P.verlaufFuer(p, 'Lea'), p.lebende)
-  assert.deepEqual(a1, { art: 'sagt', text: 'Tarik, du warst nicht an deinem Platz.', an: 'Tarik' })
+  assert.deepEqual(a1, { art: 'sagt', text: 'Tarik, du warst nicht an deinem Platz.', an: 'Tarik', behauptet: null })
   assert.ok(aufrufe[0].system.includes('Du bist Lea'))
   assert.ok(aufrufe[0].nachricht.includes('Noch im Raum: Mira, Jonas, Lea, Tarik, Nora, Stefan'))
   assert.deepEqual(aufrufe[0].tools.map((t) => t.name), ['sprechen', 'schweigen'])

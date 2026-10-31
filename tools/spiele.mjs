@@ -14,6 +14,7 @@ import { claudeAnfrage } from '../spiel/claude.mjs'
 import { apiSchluessel } from '../spiel/schluessel.mjs'
 import { kostenRechner } from '../spiel/kosten.mjs'
 import { SCHATTEN, SCHLUESSEL } from '../spiel/rollen.mjs'
+import { hefteSpeicher } from '../spiel/hefte.mjs'
 
 const argv = process.argv.slice(2)
 const zuschauen = argv.includes('--zuschauen')
@@ -24,6 +25,7 @@ const namen = zuschauen ? [...KI, 'Sam'] : [...KI, spieler]
 const rl = readline.createInterface({ input: stdin, output: stdout })
 const z = zufall()
 const kosten = kostenRechner()
+const hefte = hefteSpeicher()
 const anfrage = claudeAnfrage({ schluessel: apiSchluessel(), kosten, log: (m) => console.log(`  (${m})`) })
 const p = P.neuePartie(namen, z, { spieler })
 
@@ -70,7 +72,7 @@ const gehirne = {}
 for (const n of namen) {
   gehirne[n] = n === spieler ? menschGehirn(n)
     : claudeGehirn(n === 'Sam' ? { name: 'Sam', alter: 17, beschreibung: 'Neu in der Klasse, freundlich, etwas zu vertrauensselig.', stil: 'Höflich, fragt viel.', beispiele: ['Sorry, wer von euch war das nochmal beim Fenster?'] } : ladeFigur(n),
-      p.rollen[n], { anfrage, mitspieler: namen, spieler, zufall: z, log: (m) => console.log(`  (${m})`) })
+      p.rollen[n], { anfrage, mitspieler: namen, spieler, zufall: z, heft: hefte.alsText(n), log: (m) => console.log(`  (${m})`) })
 }
 
 console.log('\n=== NACHSITZEN ===')
@@ -94,6 +96,14 @@ const beobachter = (e) => {
 
 try {
   await spieleBisZumEnde(p, gehirne, { zufall: z, beobachter, pause: () => new Promise((f) => setTimeout(f, 250)) })
+  console.log('\nDie Figuren schreiben in ihre Hefte …')
+  const z2 = P.zusammenfassung(p)
+  for (const [n, g] of Object.entries(gehirne)) {
+    if (!g.heftSchreiben) continue
+    const e = await g.heftSchreiben(P.verlaufFuer(p, n), z2)
+    hefte.schreiben(n, { ...e, rolle: p.rollen[n], schatten: z2.schatten, sieger: z2.sieger, spieler })
+    console.log(`\n${n}: ${e.eintrag}\n  Vertrauen: ${Object.entries(e.vertrauen).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}`).join(', ') || '-'}`)
+  }
 } finally {
   const t = kosten.heute()
   console.log(`\nHeute: ${t.aufrufe} Aufrufe, ${(t.dollar * 100).toFixed(1)} Cent.`)

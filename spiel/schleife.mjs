@@ -19,7 +19,7 @@ export async function spieleBisZumEnde(p, gehirne, { zufall, beobachter = () => 
   if (p.phase === 'abend') {
     for (const n of zufall.mischen(p.lebende)) {
       const a = await gehirne[n].abend(sicht(n), p.lebende)
-      P.sprechen(p, n, a.text, a.an ?? null); melde(); await pause()
+      P.sprechen(p, n, a.text, a.an ?? null, a.behauptet ?? null); melde(); await pause()
     }
     P.abendBeenden(p); melde()
   }
@@ -47,7 +47,7 @@ export async function spieleBisZumEnde(p, gehirne, { zufall, beobachter = () => 
         for (const n of zufall.mischen(p.lebende)) {
           if (p.phase !== 'diskussion') break
           const a = await gehirne[n].diskussion(sicht(n), p.lebende)
-          if (a.art === 'schweigt') P.schweigen(p, n); else P.sprechen(p, n, a.text, a.an ?? null)
+          if (a.art === 'schweigt') P.schweigen(p, n); else P.sprechen(p, n, a.text, a.an ?? null, a.behauptet ?? null)
           melde(); await pause()
         }
         P.naechsteRunde(p); melde()

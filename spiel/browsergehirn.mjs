@@ -3,6 +3,7 @@
 // hier abgewiesen, damit die Spielschleife nie an einer Mensch-Eingabe scheitert.
 
 import { SCHATTEN, SCHLUESSEL } from './rollen.mjs'
+import { behauptungAus } from './welt.mjs'
 
 export function browserGehirn(name, rolle, { sende }) {
   let offen = null          // { was, loese, weise }
@@ -35,7 +36,7 @@ export function browserGehirn(name, rolle, { sende }) {
           if (was.pflicht) return 'Sag zumindest einen Satz'
           ergebnis = { art: 'schweigt' }
         } else {
-          ergebnis = { art: 'sagt', text, an: was.andere.includes(a.an) ? a.an : null }
+          ergebnis = { art: 'sagt', text, an: was.andere.includes(a.an) ? a.an : null, behauptet: behauptungAus(text) }
         }
       } else if (was.art === 'nacht') {
         if (!was.orte.includes(a.platz)) return 'Such dir einen Platz aus'

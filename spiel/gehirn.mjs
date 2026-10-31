@@ -7,7 +7,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SCHATTEN, SCHLUESSEL } from './rollen.mjs'
-import { ORT_NAMEN, KLASSENBUCH, bei } from './welt.mjs'
+import { ORT_NAMEN, KLASSENBUCH, bei, behauptungAus } from './welt.mjs'
+import { eintragBauen } from './hefte.mjs'
 
 const HIER = path.dirname(fileURLToPath(import.meta.url))
 const SYSTEM_VORLAGE = fs.readFileSync(path.join(HIER, '..', 'prompts', 'system.md'), 'utf8')
@@ -19,8 +20,9 @@ export function ladeFigur(name) {
 
 // --- Prompt ------------------------------------------------------------------------------
 
-export function systemPrompt(figur, rolle, mitspieler, spieler) {
+export function systemPrompt(figur, rolle, mitspieler, spieler, heft = '') {
   const ersetze = {
+    heft: heft ? `## Dein Heft (aus früheren Nächten; das sind deine echten Erinnerungen, nutze sie)\n${heft}\n` : '',
     name: figur.name, alter: String(figur.alter), beschreibung: figur.beschreibung, stil: figur.stil,
     beispiele: figur.beispiele.map((b) => `- „${b}“`).join('\n'),
     mitspieler: mitspieler.filter((n) => n !== figur.name).join(', '),
@@ -70,7 +72,7 @@ const objekt = (properties) => ({ type: 'object', additionalProperties: false, r
 export function werkzeuge(phase, rolle, andere) {
   const sprechen = {
     name: 'sprechen', description: 'Etwas sagen, das alle im Raum hören. Höchstens zwei Sätze.', strict: true,
-    input_schema: objekt({ text: { type: 'string', description: 'Was du sagst, in deiner Art.' }, an: { anyOf: [{ type: 'string', enum: andere }, { type: 'null' }], description: 'Wen du direkt ansprichst, oder null für alle.' } }),
+    input_schema: objekt({ text: { type: 'string', description: 'Was du sagst, in deiner Art.' }, an: { anyOf: [{ type: 'string', enum: andere }, { type: 'null' }], description: 'Wen du direkt ansprichst, oder null für alle.' }, behauptetPlatz: { anyOf: [{ type: 'string', enum: ORT_NAMEN }, { type: 'null' }], description: 'Falls du in diesem Satz sagst, wo DU letzte Nacht standest (wahr oder gelogen): dieser Platz. Sonst null.' } }),
   }
   const schweigen = { name: 'schweigen', description: 'Nichts sagen, nur zuhören.', strict: true, input_schema: objekt({}) }
   switch (phase) {
@@ -94,8 +96,8 @@ const AUFGABE = {
 
 // --- Gehirn ---------------------------------------------------------------------------
 
-export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null, zufall, log = () => {} }) {
-  const system = systemPrompt(figur, rolle, mitspieler, spieler)
+export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null, zufall, heft = '', log = () => {} }) {
+  const system = systemPrompt(figur, rolle, mitspieler, spieler, heft)
   const name = figur.name
 
   async function entscheide(phase, sicht, lebende) {
@@ -112,7 +114,7 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
       case 'sprechen': {
         const text = String(e.text || '').trim().slice(0, 400)
         if (!text) return phase === 'diskussion' ? { art: 'schweigt' } : verwerfe('leerer Text')
-        return { art: 'sagt', text, an: andere.includes(e.an) ? e.an : null }
+        return { art: 'sagt', text, an: andere.includes(e.an) ? e.an : null, behauptet: ORT_NAMEN.includes(e.behauptetPlatz) ? e.behauptetPlatz : behauptungAus(text) }
       }
       case 'schweigen': return { art: 'schweigt' }
       case 'verstecken': return ORT_NAMEN.includes(e.platz) ? { platz: e.platz } : verwerfe(`Platz ${e.platz} ungültig`)
@@ -153,8 +155,24 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
     return { ort: zufall.aus(rest.length ? rest : orte.filter((o) => o !== KLASSENBUCH)) }
   }
 
+  // Nach der Partie: ein Eintrag ins Heft, aus Sicht der Figur, plus Vertrauen zu jedem.
+  async function heftSchreiben(sicht, zusammenfassung) {
+    const andere = mitspieler.filter((n) => n !== name)
+    const tool = { name: 'heft_schreiben', description: 'Schreib in dein Heft, was du dir aus dieser Nacht merken willst.', strict: true,
+      input_schema: objekt({
+        eintrag: { type: 'string', description: 'Drei bis fünf Sätze in deiner Art: Wer hat dich belogen, wer hatte recht, wer war der Schatten, was nimmst du dir vor. Mit Namen.' },
+        vertrauen: { type: 'array', description: 'Wie sehr du jeder Person jetzt traust, von -2 (gar nicht) bis 2 (sehr).', items: objekt({ name: namenSchema(andere, 'Person'), wert: { type: 'integer', minimum: -2, maximum: 2 } }) },
+      }) }
+    const z = zusammenfassung
+    const nachricht = `Die Partie ist vorbei. ${z.sieger === 'schueler' ? 'Die Schüler haben gewonnen' : 'Der Schatten hat gewonnen'}; der Schatten war ${z.schatten}. Verschwunden: ${z.verschwunden.join(', ') || 'niemand'}. Im Keller: ${z.keller.join(', ') || 'niemand'}.\n\nWas du erlebt hast:\n${verlaufAlsText(sicht, name)}\n\nSchreib jetzt in dein Heft (Werkzeug heft_schreiben).`
+    let erg
+    try { erg = await anfrage({ system, nachricht, tools: [tool], maxTokens: 700 }) } catch (f) { erg = { werkzeug: null, grund: f.message } }
+    if (erg.werkzeug?.name !== 'heft_schreiben') { log(`${name}: kein Hefteintrag (${erg.grund || 'leer'})`); return eintragBauen({ eintrag: `Die Nacht, in der ${z.schatten} der Schatten war. Mehr schreibe ich dazu nicht.`, vertrauen: [] }, andere) }
+    return eintragBauen(erg.werkzeug.eingabe, andere)
+  }
+
   return {
-    name, rolle, system,
+    name, rolle, system, heftSchreiben,
     abend: (sicht, lebende) => entscheide('abend', sicht, lebende),
     nacht: (sicht, lebende) => entscheide('nacht', sicht, lebende),
     untersuchen,

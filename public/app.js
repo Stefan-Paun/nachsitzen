@@ -16,7 +16,7 @@ let quelle = null
 let karten = { privat: null, morgen: null }
 let wissen = leeresWissen(0)
 
-function leeresWissen(nacht) { return { nacht, plaetze: {}, zettel: null, spur: null, staub: new Set(), durchgang: new Set(), zeilen: [], funde: [], opfer: null } }
+function leeresWissen(nacht) { return { nacht, plaetze: {}, behauptet: {}, zettel: null, spur: null, staub: new Set(), durchgang: new Set(), zeilen: [], funde: [], opfer: null } }
 
 // --- Pixel-Avatare: 12x14 Raster, aus Hautfarbe, Haarfarbe, Frisur und Shirt -----------
 function avatar(name, look, px = 4) {
@@ -130,6 +130,7 @@ function merke(e) {
       break
     case 'zettel': wissen.zettel = e.ort; wissen.funde.push(`Zettel: ${e.text}`); break
     case 'hausmeister': case 'glocke': wissen.funde.push(e.text); break
+    case 'sagt': if (e.behauptet && e.nacht === wissen.nacht) wissen.behauptet[e.von] = e.behauptet; break
     case 'ergebnis':
       if (e.ort === status?.klassenbuch) wissen.plaetze[e.name] = e.platz
       else { for (const n of e.namen || []) wissen.plaetze[n] = e.ort; if (e.durchgang) wissen.durchgang.add(e.ort) }
@@ -163,7 +164,44 @@ function zeigeTafel() {
   hinweis.textContent = wissen.nacht ? (unbekannt.length ? `Platz unbekannt: ${unbekannt.join(', ')}` : 'Alle Plätze bekannt.') : 'Nachts siehst du hier, wer wo stand.'
   fuelle($('wissen'), wissen.zeilen.map((z) => [z.t, z.k]), 'Noch nichts. Nachts bekommst du etwas mit.')
   fuelle($('funde'), wissen.funde.map((t) => [t, 'fund']), 'Noch keine.')
+  // Behauptungen gegen das, was ich sicher weiss
+  const ul = $('behauptungen'); ul.innerHTML = ''
+  const namen = Object.keys(wissen.behauptet)
+  if (!namen.length) { const li = document.createElement('li'); li.className = 'leer'; li.textContent = 'Noch nichts behauptet.'; ul.appendChild(li) }
+  for (const n of namen) {
+    const b = wissen.behauptet[n], w = wissen.plaetze[n]
+    const li = document.createElement('li'); li.className = 'behauptung'
+    const links = document.createElement('span'); links.textContent = `${n === status.spieler ? 'Du' : n}: ${BEI[b] || b}`
+    const rechts = document.createElement('span'); rechts.className = 'w'
+    if (w && w !== b) { li.classList.add('widerspruch'); rechts.textContent = `⚠ war ${BEI[w] || w}` }
+    else if (w) { li.classList.add('passt'); rechts.textContent = '✓ stimmt' }
+    else rechts.textContent = 'ungeprüft'
+    li.appendChild(links); li.appendChild(rechts); ul.appendChild(li)
+  }
 }
+
+// --- Hefte: nach der Partie zeigen, wie die Figuren dich sehen ---------------------------
+function zeigeHefte(eintraege) {
+  for (const [n, e] of Object.entries(eintraege)) {
+    const k = karte('heft', `${n} schreibt in ihr Heft`)
+    kartenZeile(k, e.eintrag)
+    const v = Object.entries(e.vertrauen || {}).map(([p, w]) => `${p === status?.spieler ? 'dir' : p} ${w > 0 ? '+' : ''}${w}`).join(' · ')
+    if (v) { const d = document.createElement('div'); d.className = 'vertrauen'; d.textContent = `Vertrauen: ${v}`; k.appendChild(d) }
+  }
+  unten()
+}
+async function hefteLesen() {
+  const r = await fetch('/hefte'); const d = await r.json()
+  if (d.fehler) { $('hinweis').textContent = d.fehler; return }
+  const k = karte('heft', 'Die Hefte (alle Partien)')
+  for (const [n, liste] of Object.entries(d)) {
+    if (!liste.length) continue
+    const letzter = liste.at(-1)
+    kartenZeile(k, `${n} (${liste.length} ${liste.length === 1 ? 'Eintrag' : 'Einträge'}), zuletzt ${letzter.datum}: ${letzter.eintrag}`)
+  }
+  if (!k.querySelector('p')) kartenZeile(k, 'Noch leer. Nach der ersten Partie mit echten Figuren steht hier etwas.')
+}
+$('heftknopf').onclick = hefteLesen
 function marke(d, klasse, text) { const m = document.createElement('div'); m.className = `marke ${klasse}`; m.textContent = text; d.appendChild(m) }
 function fuelle(ul, eintraege, leer) {
   ul.innerHTML = ''
@@ -199,6 +237,7 @@ function zeigeKlasse() {
   $('phase').textContent = status.phase === 'ende' ? 'Die Tür geht auf.' : `${PHASE[status.phase] || ''}${status.nacht ? ` · Nacht ${status.nacht}` : ''}`
   $('lampe').classList.toggle('aus', status.phase === 'nacht')
   $('neu').hidden = false
+  $('heftknopf').hidden = !(status.hefte && status.phase === 'ende')
 }
 
 // --- Eingabe -------------------------------------------------------------------------
@@ -271,6 +310,7 @@ function verbinde() {
   quelle.addEventListener('ereignis', (m) => zeigeEreignis(JSON.parse(m.data)))
   quelle.addEventListener('tippt', (m) => { const d = JSON.parse(m.data); zeigeTippt(d.von, d.fertig) })
   quelle.addEventListener('warte', (m) => zeigeWarte(JSON.parse(m.data)))
+  quelle.addEventListener('hefte', (m) => zeigeHefte(JSON.parse(m.data)))
 }
 
 // Laeuft schon eine Partie (Seite neu geladen)? Dann direkt rein.

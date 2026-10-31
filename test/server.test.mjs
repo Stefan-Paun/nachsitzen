@@ -1,7 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { erstelleServer } from '../server.mjs'
+import { hefteSpeicher } from '../spiel/hefte.mjs'
 import { skriptGehirn } from '../tools/skriptgehirne.mjs'
 import { browserGehirn } from '../spiel/browsergehirn.mjs'
 import { zufall } from '../spiel/zufall.mjs'
@@ -101,7 +105,7 @@ test('Browser-Gehirn weist ungueltige Eingaben ab und loest gueltige ein', async
   assert.deepEqual(g.wartetAuf(), { art: 'sagen', pflicht: true, andere: ['Mira', 'Lea'] })
   assert.equal(g.aktion({ art: 'schweigt' }), 'Sag zumindest einen Satz')
   assert.equal(g.aktion({ art: 'sagt', text: '  Hallo  ', an: 'Niemand' }), null)
-  assert.deepEqual(await v, { art: 'sagt', text: 'Hallo', an: null })
+  assert.deepEqual(await v, { art: 'sagt', text: 'Hallo', an: null, behauptet: null })
   const n = g.nacht([], ['Stefan', 'Mira', 'Lea'], { orte: ['Tür', 'Fenster'] })
   assert.deepEqual(g.wartetAuf(), { art: 'nacht', aufgabe: 'holen', orte: ['Tür', 'Fenster'], optionen: ['Mira', 'Lea'] })
   assert.equal(g.aktion({ ziel: 'Lea' }), 'Such dir einen Platz aus')
@@ -119,4 +123,31 @@ test('Browser-Gehirn weist ungueltige Eingaben ab und loest gueltige ein', async
   g.abbrechen()
   await assert.rejects(d, /abgebrochen/)
   assert.ok(gesendet.some(([a, d]) => a === 'warte' && d === null))
+})
+
+test('Server: nach dem Ende schreiben Figuren mit heftSchreiben ins Heft, /hefte nur zwischen Partien', async () => {
+  const ordner = fs.mkdtempSync(path.join(os.tmpdir(), 'ns-srv-hefte-'))
+  const hefte = hefteSpeicher({ ordner })
+  const gelesen = {}
+  const fabrikMitHeft = (name, rolle, opts) => {
+    gelesen[name] = opts.heft
+    const g = skriptGehirn(name, rolle, opts.zufall)
+    g.heftSchreiben = async (sicht, z) => ({ eintrag: `${name}: der Schatten war ${z.schatten}.`, vertrauen: { Sam: -1 } })
+    return g
+  }
+  hefte.schreiben('Mira', { eintrag: 'Alter Eintrag.', vertrauen: { Lea: 2 } })
+  const s = erstelleServer({ gehirnFabrik: fabrikMitHeft, hefte, port: 0, pause: 0, startwert: 5 })
+  const port = await s.starten()
+  try {
+    await post(port, '/partie', { zuschauen: true })
+    assert.match(gelesen.Mira, /Alter Eintrag/); assert.equal(gelesen.Lea, '')
+    assert.equal((await fetch(`http://127.0.0.1:${port}/hefte`)).status, 403, 'waehrend der Partie gesperrt')
+    const ev = await sse(port, (l) => l.some((e) => e.art === 'hefte'))
+    const h = ev.find((e) => e.art === 'hefte').daten
+    assert.ok(Object.keys(h).length >= 5); assert.match(h.Nora.eintrag, /der Schatten war/)
+    assert.equal(hefte.lesen('Mira').length, 2); assert.equal(hefte.lesen('Mira').at(-1).sieger, s.partie().sieger)
+    const r = await fetch(`http://127.0.0.1:${port}/hefte`); assert.equal(r.status, 200)
+    const alle = await r.json(); assert.equal(alle.Mira.length, 2)
+    assert.ok(ev.some((e) => e.art === 'status' && e.daten?.hefteGeschrieben === true))
+  } finally { await s.schliessen() }
 })

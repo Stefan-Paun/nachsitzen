@@ -16,6 +16,7 @@ import { claudeAnfrage } from './spiel/claude.mjs'
 import { apiSchluessel } from './spiel/schluessel.mjs'
 import { kostenRechner } from './spiel/kosten.mjs'
 import { ORT_NAMEN, KLASSENBUCH } from './spiel/welt.mjs'
+import { hefteSpeicher } from './spiel/hefte.mjs'
 
 const HIER = path.dirname(fileURLToPath(import.meta.url))
 const OEFFENTLICH = path.join(HIER, 'public')
@@ -23,7 +24,7 @@ export const KI_FIGUREN = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora']
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' }
 
 // gehirnFabrik(name, rolle, { mitspieler, spieler, zufall }) -> Gehirn; im Test Skript-Gehirne statt Claude
-export function erstelleServer({ gehirnFabrik, host = '127.0.0.1', port = Number(process.env.NACHSITZEN_PORT || 4800), pause = 700, startwert = null, log = console.log } = {}) {
+export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1', port = Number(process.env.NACHSITZEN_PORT || 4800), pause = 700, startwert = null, log = console.log } = {}) {
   const verbindungen = new Set()
   let spiel = null          // { p, spieler, zuschauen, mensch, gesendet }
 
@@ -36,7 +37,7 @@ export function erstelleServer({ gehirnFabrik, host = '127.0.0.1', port = Number
     verschwunden: spiel.p.verschwunden, spieler: spiel.spieler, zuschauen: spiel.zuschauen, sieger: spiel.p.sieger,
     rolle: spiel.spieler ? spiel.p.rollen[spiel.spieler] : null,
     rollen: spiel.zuschauen || spiel.p.phase === 'ende' ? spiel.p.rollen : null,
-    figuren: spiel.figuren, warte: spiel.mensch?.wartetAuf() ?? null, orte: ORT_NAMEN, klassenbuch: KLASSENBUCH,
+    figuren: spiel.figuren, warte: spiel.mensch?.wartetAuf() ?? null, orte: ORT_NAMEN, klassenbuch: KLASSENBUCH, hefte: !!hefte, hefteGeschrieben: spiel.hefteGeschrieben,
   }
   // Zuschauer sehen alles. Der Spieler sieht, was seine Figur sehen darf; ist er verschwunden
   // oder im Keller, schaut er als Geist weiter zu (alles ausser privaten Nacht-Ereignissen).
@@ -57,15 +58,36 @@ export function erstelleServer({ gehirnFabrik, host = '127.0.0.1', port = Number
     for (const n of namen) {
       if (n === spieler) { mensch = browserGehirn(n, p.rollen[n], { sende }); gehirne[n] = mensch }
       else {
-        const g = gehirnFabrik(n, p.rollen[n], { mitspieler: namen, spieler, zufall: z })
+        const g = gehirnFabrik(n, p.rollen[n], { mitspieler: namen, spieler, zufall: z, heft: hefte ? hefte.alsText(n) : '' })
         gehirne[n] = mitTippen(g, n)
       }
     }
-    spiel = { p, spieler, zuschauen, mensch, figuren, gesendet: 0 }
+    spiel = { p, spieler, zuschauen, mensch, figuren, gehirne, hefteGeschrieben: false }
     const beobachter = (e) => { if (sichtbar(e)) sende('ereignis', fuerBrowser(e)); sende('status', status()) }
+    const meins = spiel
     spieleBisZumEnde(p, gehirne, { zufall: z, beobachter, pause: () => new Promise((f) => setTimeout(f, pause)) })
+      .then(() => hefteSchreiben(meins))
       .catch((f) => { log(`Partie beendet: ${f.message}`); if (p.phase !== 'ende') { p.phase = 'ende'; p.sieger = p.sieger || null } sende('status', status()) })
     return status()
+  }
+
+  // Nach dem Ende schreibt jede KI-Figur in ihr Heft (ein Aufruf pro Figur); der Browser bekommt die Eintraege.
+  async function hefteSchreiben(sp) {
+    if (!hefte || sp !== spiel) return
+    const z = P.zusammenfassung(sp.p)
+    const eintraege = {}
+    for (const [n, g] of Object.entries(sp.gehirne)) {
+      if (!g.heftSchreiben) continue
+      sende('tippt', { von: n })
+      try {
+        const e = await g.heftSchreiben(P.verlaufFuer(sp.p, n), z)
+        hefte.schreiben(n, { ...e, rolle: sp.p.rollen[n], schatten: z.schatten, sieger: z.sieger, spieler: sp.spieler })
+        eintraege[n] = e
+      } catch (f) { log(`Heft ${n}: ${f.message}`) }
+      sende('tippt', { von: n, fertig: true })
+    }
+    sp.hefteGeschrieben = true
+    sende('hefte', eintraege); sende('status', status())
   }
 
   // KI-Gehirne melden vorher "tippt", damit der Browser Leben zeigt
@@ -98,6 +120,12 @@ export function erstelleServer({ gehirnFabrik, host = '127.0.0.1', port = Number
         const body = await lies(req)
         const fehler = spiel?.mensch ? spiel.mensch.aktion(body) : 'Keine laufende Partie'
         res.writeHead(fehler ? 400 : 200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: !fehler, fehler }))
+        return
+      }
+      if (req.method === 'GET' && url.pathname === '/hefte') {
+        // Nur zwischen den Partien lesbar - waehrend des Spiels wuesste der Spieler sonst, wer ihm misstraut
+        if (!hefte || (spiel && spiel.p.phase !== 'ende')) { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ fehler: 'Hefte gibt es erst nach der Partie' })); return }
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(hefte.alle(KI_FIGUREN)))
         return
       }
       if (req.method === 'GET' && url.pathname === '/status') {
@@ -145,7 +173,7 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
   const fabrik = (name, rolle, opts) => claudeGehirn(name === 'Sam'
     ? { name: 'Sam', alter: 17, beschreibung: 'Neu in der Klasse, freundlich, etwas zu vertrauensselig. Du willst dazugehören und sagst zu oft „ehrlich gesagt“.', stil: 'Höflich, fragt viel, entschuldigt sich beim Widersprechen.', beispiele: ['Sorry, wer von euch war das nochmal beim Fenster?', 'Ehrlich gesagt versteh ich nicht, warum alle auf Jonas zeigen.', 'Ich will niemandem was unterstellen, aber das passt nicht.'] }
     : ladeFigur(name), rolle, { anfrage, ...opts, log: (m) => console.log(`  (${m})`) })
-  const s = erstelleServer({ gehirnFabrik: fabrik })
+  const s = erstelleServer({ gehirnFabrik: fabrik, hefte: hefteSpeicher() })
   const port = await s.starten()
   console.log(`Nachsitzen laeuft auf http://localhost:${port}`)
   const t = kosten.heute()

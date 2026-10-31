@@ -105,3 +105,16 @@ export function untersuchung({ ort, plaetze, schatten, opfer, wer, zufall }) {
   if (durchgang) teile.push('Dazu Tintenpunkte am Boden, als wäre jemand nur durchgegangen.')
   return { ort, namen: dort, durchgang, text: teile.join(' ') }
 }
+
+// Erkennt, ob jemand im Satz seinen eigenen Nachtplatz nennt ("ich war am Fenster", "ich stand bei der Tür").
+// Nur fuer die Spurentafel; Claude-Figuren geben ihre Behauptung direkt im Werkzeug an.
+export function behauptungAus(text) {
+  const t = String(text || '').toLowerCase()
+  const m = /\bich\s+(?:war|stand|bin|hab(?:e)?\s+\w*\s*gestanden|blieb)\b[^.!?;]{0,40}?\b(?:bei der tür|an der tür|an der tafel|bei der tafel|bei den pulten|an den pulten|am pult|am fenster|beim fenster)\b/.exec(t)
+  if (!m) return null
+  const o = m[0]
+  if (o.includes('tür')) return 'Tür'
+  if (o.includes('tafel')) return 'Tafel'
+  if (o.includes('pult')) return 'Pulte'
+  return 'Fenster'
+}

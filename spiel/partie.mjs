@@ -60,11 +60,12 @@ function pruefePhase(p, ...erlaubt) {
 
 // --- Sprechen (Abend, Diskussion, laute Begruendung bei der Abstimmung) ------------------
 
-export function sprechen(p, von, text, an = null) {
+export function sprechen(p, von, text, an = null, behauptet = null) {
   pruefePhase(p, 'abend', 'diskussion', 'abstimmung')
   if (!lebt(p, von)) throw new Error(`${von} ist nicht im Raum`)
   if (an && !lebt(p, an)) throw new Error(`${an} ist nicht im Raum`)
-  melde(p, 'sagt', { von, an, text }, [...p.lebende])
+  if (behauptet && !istOrt(behauptet)) behauptet = null
+  melde(p, 'sagt', { von, an, text, behauptet }, [...p.lebende])   // behauptet = genannter eigener Nachtplatz (kann gelogen sein)
 }
 
 export function schweigen(p, von) {
