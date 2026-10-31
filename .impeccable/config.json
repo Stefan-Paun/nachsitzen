@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "pulsing-dot",
+        "value": "*",
+        "files": [
+          "public/index.html"
+        ],
+        "createdAt": "2026-10-31T15:04:34.708Z",
+        "reason": "Claude: die drei Punkte sind die Tipp-Anzeige, sie laufen nur, waehrend eine Figur gerade bei Claude nachdenkt (Ereignis tippt), und verschwinden mit der Antwort; prefers-reduced-motion schaltet sie ab"
+      }
+    ]
+  }
+}
