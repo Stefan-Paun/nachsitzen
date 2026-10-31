@@ -18,7 +18,7 @@ import { hefteSpeicher } from '../spiel/hefte.mjs'
 
 const argv = process.argv.slice(2)
 const zuschauen = argv.includes('--zuschauen')
-const spieler = zuschauen ? null : (argv[argv.indexOf('--name') + 1] || 'Stefan')
+const spieler = zuschauen ? null : (argv[argv.indexOf('--name') + 1] || 'Du')
 const KI = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora', 'Sam']
 const namen = zuschauen ? [...KI, 'Ben'] : [...KI, spieler]
 

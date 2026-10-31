@@ -345,7 +345,9 @@ $('schweigen').onclick = () => sende({ art: 'schweigt' })
 // --- Start und Verbindung --------------------------------------------------------------
 function frisch() { verlauf.innerHTML = ''; tippende = new Map(); karten = { privat: null, morgen: null }; wissen = leeresWissen(0); pulte = null; sprecher = null; schreckeBenutzt = []; $('meinerolle').textContent = '' }
 async function starten(zuschauen) {
-  const r = await fetch('/partie', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: $('name').value, zuschauen }) })
+  const name = $('name').value.trim()
+  if (!zuschauen && !name) { $('name').focus(); return }
+  const r = await fetch('/partie', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, zuschauen }) })
   const d = await r.json()
   if (d && d.fehler) { alert(d.fehler); return }
   frisch()

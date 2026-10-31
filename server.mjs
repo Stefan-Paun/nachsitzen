@@ -48,7 +48,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
 
   function neuePartie({ name, zuschauen }) {
     if (spiel && spiel.p.phase !== 'ende') spiel.mensch?.abbrechen()
-    const spieler = zuschauen ? null : (String(name || 'Stefan').trim().slice(0, 20) || 'Stefan')
+    const spieler = zuschauen ? null : (String(name || '').trim().slice(0, 20) || 'Du')
     const namen = [...KI_FIGUREN, zuschauen ? ZUSCHAUER_ERSATZ : spieler]
     if (new Set(namen.map((n) => n.toLowerCase())).size !== namen.length) throw new Error('Der Name ist schon vergeben')
     const z = zufall(startwert ?? Date.now())
