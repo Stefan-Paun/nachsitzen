@@ -119,9 +119,11 @@ test('Claude-Gehirn: echte Nacht-Antwort wird zu Platz und Ziel; Untersuchen bra
   const anfrage = async () => { aufrufe++; return { werkzeug: { name: 'pruefen', eingabe: { platz: 'Fenster', ziel: 'Mira' } } } }
   const g = claudeGehirn(ladeFigur('Nora'), SCHLUESSEL, { anfrage, mitspieler: NAMEN, zufall: zufall(9) })
   assert.deepEqual(await g.nacht([], ['Nora', 'Mira', 'Lea'], { orte: P.ORT_NAMEN }), { platz: 'Fenster', ziel: 'Mira' })
-  const sicht = [{ art: 'fund', text: 'Kreidestaub an der Tafel, als wäre jemand nur durchgegangen.' }]
+  const sicht = [{ art: 'fund', nacht: 1, text: 'Kreidestaub an der Tafel, als wäre jemand nur durchgegangen.' }]
   const ergebnisse = new Set()
   for (let i = 0; i < 40; i++) { const u = g.untersuchen(sicht, NAMEN, { orte: [...P.ORT_NAMEN, 'Klassenbuch'] }); if (u) ergebnisse.add(u.ort) }
   assert.ok(ergebnisse.has('Tafel'), 'folgt dem Fund'); assert.ok(ergebnisse.size >= 2)
+  const belegt = [...sicht, { art: 'untersucht', nacht: 1, von: 'Sam', ort: 'Tafel' }]
+  for (let i = 0; i < 40; i++) { const u = g.untersuchen(belegt, NAMEN, { orte: [...P.ORT_NAMEN, 'Klassenbuch'] }); if (u) assert.notEqual(u.ort, 'Tafel', 'schaut nicht dort nach, wo heute schon jemand war') }
   assert.equal(aufrufe, 1)
 })

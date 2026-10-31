@@ -142,11 +142,15 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
   // sich ansieht. Das Ergebnis landet in ihrem Verlauf, mit dem sie dann redet.
   function untersuchen(sicht, lebende, { orte }) {
     if (zufall.zahl() < 0.25) return null
-    const fund = [...sicht].reverse().find((e) => e.art === 'fund')
+    const heute = Math.max(0, ...sicht.map((e) => e.nacht ?? 0))
+    const schonDran = new Set(sicht.filter((e) => e.art === 'untersucht' && e.nacht === heute).map((e) => e.ort))
+    const frei = (o) => !schonDran.has(o)
+    const fund = [...sicht].reverse().find((e) => e.art === 'fund' && e.nacht === heute)
     const treffer = fund && ORT_NAMEN.find((o) => fund.text.includes(bei(o)) || fund.text.includes(o))
-    if (treffer && zufall.zahl() < 0.6) return { ort: treffer }
-    if (zufall.zahl() < 0.3) return { ort: KLASSENBUCH }
-    return { ort: zufall.aus(orte.filter((o) => o !== KLASSENBUCH)) }
+    if (treffer && frei(treffer) && zufall.zahl() < 0.6) return { ort: treffer }   // dem Fund folgen, aber nicht als Vierter
+    if (frei(KLASSENBUCH) && zufall.zahl() < 0.3) return { ort: KLASSENBUCH }
+    const rest = orte.filter((o) => o !== KLASSENBUCH && frei(o))
+    return { ort: zufall.aus(rest.length ? rest : orte.filter((o) => o !== KLASSENBUCH)) }
   }
 
   return {
