@@ -1,0 +1,13 @@
+{
+  "name": "nachsitzen",
+  "version": "0.0.1",
+  "description": "Nachts in der Schule eingesperrt, mit fuenf KI-Figuren. Eine davon ist der Schatten.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "simuliere": "node tools/simuliere.mjs"
+  },
+  "license": "MIT"
+}
