@@ -52,7 +52,7 @@ function pruefePhase(p, ...erlaubt) {
 // --- Sprechen (Abend und Diskussion) -----------------------------------------------------
 
 export function sprechen(p, von, text, an = null) {
-  pruefePhase(p, 'abend', 'diskussion')
+  pruefePhase(p, 'abend', 'diskussion', 'abstimmung')   // bei der Abstimmung: die laute Begruendung
   if (!lebt(p, von)) throw new Error(`${von} ist nicht im Raum`)
   if (an && !lebt(p, an)) throw new Error(`${an} ist nicht im Raum`)
   melde(p, 'sagt', { von, an, text }, [...p.lebende])

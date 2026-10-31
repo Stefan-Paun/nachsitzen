@@ -59,6 +59,9 @@ test('Phasen laufen Abend -> Nacht -> Morgen -> Diskussion -> Abstimmung', () =>
   assert.throws(() => P.stimme(p, 'Mira', 'Jonas'), /Nicht erlaubt in Phase "diskussion"/)
   for (let r = 0; r < P.SPRECHRUNDEN; r++) P.naechsteRunde(p)
   assert.equal(p.phase, 'abstimmung')
+  const [a, b] = p.lebende
+  P.sprechen(p, a, `Ich stimme für ${b}, das passt nicht zusammen.`, b)   // Begruendung laut ist erlaubt
+  assert.throws(() => P.naechsteRunde(p), /Nicht erlaubt in Phase "abstimmung"/)
 })
 
 test('Nacht: Schatten darf sich nicht selbst waehlen, Morgen braucht beide Entscheidungen', () => {
