@@ -1,7 +1,8 @@
 // Nachsitzen im Browser: Verlauf aus Sicht des Spielers, Spurentafel (Raumplan, Wissen, Funde),
 // Pixel-Avatare und Eingaben an den Server. Alles Deutsch, keine Abhaengigkeiten.
 
-import { layout, zeichneFigur, klasseAnimator } from './klasse.js'
+import { layout, zeichneFigur, klasseAnimator, waehleSchreck } from './klasse.js'
+import { tonAnlage } from './ton.js'
 
 const $ = (id) => document.getElementById(id)
 const ROLLE = { schatten: 'der Schatten', schluessel: 'der Schlüsselträger', schueler: 'ein normaler Schüler' }
@@ -19,6 +20,33 @@ let karten = { privat: null, morgen: null }
 let wissen = leeresWissen(0)
 const szene = klasseAnimator($('szene'))
 let sprecher = null, pulte = null
+const ton = tonAnlage()
+let schreckeBenutzt = []
+
+// --- Einstellungen: Ton, Schrecken, Daemmerung (nur fuer diesen Browser gemerkt) ------------
+const einstellungen = { ton: false, schrecken: true, daemmerung: false }
+try { Object.assign(einstellungen, JSON.parse(localStorage.getItem('nachsitzen.einstellungen') || '{}')) } catch {}
+einstellungen.ton = false   // Ton braucht immer einen Klick (Browser-Regel)
+function zeigeEinstellungen() {
+  for (const k of ['ton', 'schrecken', 'daemmerung']) $(`r-${k}`).setAttribute('aria-pressed', String(einstellungen[k]))
+  document.body.classList.toggle('daemmerung', einstellungen.daemmerung)
+  try { localStorage.setItem('nachsitzen.einstellungen', JSON.stringify({ schrecken: einstellungen.schrecken, daemmerung: einstellungen.daemmerung })) } catch {}
+}
+$('r-ton').onclick = () => { einstellungen.ton = !einstellungen.ton; if (einstellungen.ton && !einstellungen.daemmerung) ton.einschalten(); else ton.ausschalten(); zeigeEinstellungen() }
+$('r-schrecken').onclick = () => { einstellungen.schrecken = !einstellungen.schrecken; zeigeEinstellungen() }
+$('r-daemmerung').onclick = () => { einstellungen.daemmerung = !einstellungen.daemmerung; if (einstellungen.daemmerung) ton.ausschalten(); else if (einstellungen.ton) ton.einschalten(); zeigeEinstellungen(); zeigeSzene() }
+zeigeEinstellungen()
+
+// Ein Schreck pro Nacht, nur wenn gerade keine Eingabe offen ist (die Sekunde der Frage ist still)
+function vielleichtErschrecken() {
+  if (!einstellungen.schrecken || einstellungen.daemmerung) return
+  const art = waehleSchreck(schreckeBenutzt)
+  if (!art) return
+  setTimeout(() => {
+    if (status?.warte || status?.phase === 'ende' || einstellungen.daemmerung) return
+    schreckeBenutzt.push(art); szene.erschrecke(art); ton.klang('schreck')
+  }, 1500 + Math.random() * 3000)
+}
 
 function leeresWissen(nacht) { return { nacht, plaetze: {}, behauptet: {}, zettel: null, spur: null, staub: new Set(), durchgang: new Set(), zeilen: [], funde: [], opfer: null } }
 
@@ -70,7 +98,7 @@ function zeigeEreignis(e) {
   switch (e.art) {
     case 'start': regie(e.text); break
     case 'rolle': if (e.name === ich) $('meinerolle').textContent = `Deine Rolle: ${ROLLE[e.rolle]}.`; break
-    case 'nacht': karten = { privat: null, morgen: null }; regie(`Nacht ${e.nacht}. ${e.text}`, 'dunkel'); break
+    case 'nacht': karten = { privat: null, morgen: null }; regie(`Nacht ${e.nacht}. ${e.text}`, 'dunkel'); ton.klang('nacht'); vielleichtErschrecken(); break
     case 'platz': if (e.wer === ich) regie(`Du stellst dich ${BEI[e.ort] || e.ort} hin.`, 'geheim'); break
     case 'schatten-waehlt': regie(`Du schleichst zu ${e.ziel} und zurück.`, 'geheim'); break
     case 'pruefung': regie(`Du prüfst ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`, 'geheim'); break
@@ -80,20 +108,20 @@ function zeigeEreignis(e) {
       kartenZeile(karten.privat, (status?.zuschauen ? `${e.wer}: ` : '') + e.text); break
     case 'verschwunden':
       karten.morgen = karte('morgen', `Morgen ${e.nacht}`)
-      kartenZeile(karten.morgen, e.text, 'schwer'); break
+      kartenZeile(karten.morgen, e.text, 'schwer'); ton.klang('verschwunden'); break
     case 'fund': kartenZeile(karten.morgen || (karten.morgen = karte('morgen', `Morgen ${e.nacht}`)), e.text, e.typ === 'notiz' ? 'fund notiz' : 'fund'); break
     case 'zettel': kartenZeile(karten.morgen || (karten.morgen = karte('morgen', `Morgen ${e.nacht}`)), `Ein Zettel unter der Tür: „${e.text}“`, 'fund'); break
     case 'hausmeister': case 'glocke': kartenZeile(karten.morgen || (karten.morgen = karte('morgen', `Morgen ${e.nacht}`)), e.text, 'ereignis'); break
     case 'untersucht': blase(e.von, `${e.von === ich ? 'Du untersuchst' : 'untersucht'} ${e.ort === status?.klassenbuch ? 'das Klassenbuch' : `den Platz ${BEI[e.ort] || e.ort}`}.`, { still: true }); break
     case 'ergebnis': regie(`Nur du weißt das: ${e.text}`, 'geheim'); break
-    case 'diskussion': regie(`Gespräch, Runde ${e.runde}${e.von ? ` von ${e.von}` : ''}`); break
-    case 'sagt': sprecher = e.von; blase(e.von, e.text, { an: e.an }); break
+    case 'diskussion': regie(`Gespräch, Runde ${e.runde}${e.von ? ` von ${e.von}` : ''}`); if (e.runde === 1) ton.klang('morgen'); break
+    case 'sagt': sprecher = e.von; blase(e.von, e.text, { an: e.an }); if (e.von !== ich) ton.klang('stimme'); break
     case 'schweigt': blase(e.von, `${e.von === ich ? 'Du schweigst' : `${e.von} schweigt`}.`, { still: true }); break
     case 'abstimmung': regie(e.text, 'schwer'); break
     case 'stimme': blase(e.von, e.fuer ? `stimmt für ${e.fuer === ich ? 'dich' : e.fuer}.` : 'stimmt nicht ab.', { still: true }); break
-    case 'eingesperrt': regie(`${e.name} kommt in den Keller. ${e.name} war ${ROLLE[e.rolle]}.`, 'schwer'); break
+    case 'eingesperrt': regie(`${e.name} kommt in den Keller. ${e.name} war ${ROLLE[e.rolle]}.`, 'schwer'); ton.klang('eingesperrt'); break
     case 'niemand': regie(`Niemand kommt in den Keller${e.gleichstand ? ' (Gleichstand)' : ''}.`); break
-    case 'ende': regie(e.sieger === 'schueler' ? `Die Schüler haben gewonnen. Der Schatten war ${e.schatten}.` : `Der Schatten hat gewonnen. Es war ${e.schatten}.`, 'ende'); break
+    case 'ende': regie(e.sieger === 'schueler' ? `Die Schüler haben gewonnen. Der Schatten war ${e.schatten}.` : `Der Schatten hat gewonnen. Es war ${e.schatten}.`, 'ende'); ton.klang(e.sieger === 'schueler' ? 'ende-schueler' : 'ende-schatten'); break
   }
   zeigeTafel()
 }
@@ -134,7 +162,7 @@ function zeigeSzene() {
   const namen = Object.keys(status.figuren || {})
   if (!pulte) { pulte = {}; namen.forEach((n, i) => { pulte[n] = i }) }
   const l = layout({ phase: status.phase, namen, lebende: status.lebende, verschwunden: status.verschwunden, keller: status.keller, spieler: status.spieler, zuschauen: status.zuschauen, plaetze: wissen.plaetze, opfer: wissen.opfer, pulte })
-  szene.setze({ layout: l, looks: status.figuren, spieler: status.spieler, spur: wissen.spur, staub: new Set([...wissen.staub, ...wissen.durchgang]), zettel: !!wissen.zettel, sprecher, ende: status.phase === 'ende', phase: status.phase })
+  szene.setze({ layout: l, looks: status.figuren, spieler: status.spieler, spur: wissen.spur, staub: new Set([...wissen.staub, ...wissen.durchgang]), zettel: !!wissen.zettel, sprecher, ende: status.phase === 'ende', phase: status.phase, daemmerung: einstellungen.daemmerung })
 }
 
 function zeigeTafel() {
@@ -289,7 +317,7 @@ $('sagen').onsubmit = (ev) => { ev.preventDefault(); const text = $('text').valu
 $('schweigen').onclick = () => sende({ art: 'schweigt' })
 
 // --- Start und Verbindung --------------------------------------------------------------
-function frisch() { verlauf.innerHTML = ''; tippende = new Map(); karten = { privat: null, morgen: null }; wissen = leeresWissen(0); pulte = null; sprecher = null; $('meinerolle').textContent = '' }
+function frisch() { verlauf.innerHTML = ''; tippende = new Map(); karten = { privat: null, morgen: null }; wissen = leeresWissen(0); pulte = null; sprecher = null; schreckeBenutzt = []; $('meinerolle').textContent = '' }
 async function starten(zuschauen) {
   const r = await fetch('/partie', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: $('name').value, zuschauen }) })
   const d = await r.json()

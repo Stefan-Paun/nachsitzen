@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { layout, ZONEN, PULTE, B, H } from '../public/klasse.js'
+import { layout, ZONEN, PULTE, B, H, waehleSchreck, SCHRECKEN } from '../public/klasse.js'
 
 const NAMEN = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora', 'Stefan']
 const basis = { namen: NAMEN, lebende: NAMEN, verschwunden: [], keller: [], spieler: 'Stefan', plaetze: {}, opfer: null }
@@ -32,4 +32,12 @@ test('Morgen zaehlt noch als Nacht-Bild; eigene Pultzuordnung wird respektiert',
   const t = layout({ ...basis, phase: 'abend', pulte: { Stefan: 0, Mira: 5 } })
   const st = t.figuren.find((f) => f.name === 'Stefan'), mi = t.figuren.find((f) => f.name === 'Mira')
   assert.equal(st.x, PULTE[0][0] + 6); assert.equal(mi.x, PULTE[5][0] + 6)
+})
+
+test('Schrecken: nie zweimal derselbe, nie wenn alle verbraucht, nur mit Wahrscheinlichkeit', () => {
+  assert.equal(waehleSchreck(SCHRECKEN, () => 0), null)
+  assert.equal(waehleSchreck([], () => 0.9), null)
+  const a = waehleSchreck([], () => 0); assert.ok(SCHRECKEN.includes(a))
+  const b = waehleSchreck([a], () => 0); assert.ok(b && b !== a)
+  const c = waehleSchreck([a, b], () => 0); assert.ok(c && c !== a && c !== b)
 })

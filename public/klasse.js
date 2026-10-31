@@ -20,6 +20,14 @@ export const PAL = {
 const PERSON = { b: 12, h: 14 }
 const sortiert = (l) => [...l].sort()
 
+// Schrecken: hoechstens einer pro Nacht, nie zweimal derselbe in einer Partie, nie waehrend einer Eingabe.
+export const SCHRECKEN = ['gestalt', 'fenster', 'flackern']
+export function waehleSchreck(benutzt, zufall = Math.random) {
+  const frei = SCHRECKEN.filter((s) => !benutzt.includes(s))
+  if (!frei.length || zufall() > 0.55) return null
+  return frei[Math.floor(zufall() * frei.length)]
+}
+
 // Wer steht wo? zustand: { phase, namen, lebende, verschwunden, keller, spieler, zuschauen, plaetze, opfer, pulte }
 // Rueckgabe: { figuren: [{ name, x, y, modus }], leerePulte: [index], ... } - alles in logischen Pixeln.
 export function layout(z) {
@@ -131,9 +139,15 @@ export function zeichne(canvas, s) {
   // Nachts: Fragezeichen fuer Unbekannte, unten rechts
   if (s.layout.nacht && s.layout.unbekannt.length) { g.fillStyle = '#6a7090'; g.font = '7px monospace'; g.fillText(`? ${s.layout.unbekannt.join(' ')}`, 196, 118) }
 
-  // Lampe mit Lichtkegel
-  r(159, 0, 2, 6, PAL.schnur); r(152, 6, 16, 4, mix('#8a6a45', '#3a2c1e')); r(155, 10, 10, 3, licht > .2 ? PAL.lampe : PAL.lampeAus)
-  if (licht > .05) { g.globalAlpha = .12 * licht; g.fillStyle = PAL.lampe; g.beginPath(); g.moveTo(152, 12); g.lineTo(168, 12); g.lineTo(230, H); g.lineTo(90, H); g.closePath(); g.fill(); g.globalAlpha = 1 }
+  // Lampe mit Lichtkegel (beim Flackern kurz aus)
+  const flackert = s.schreck === 'flackern' && Math.floor(Date.now() / 90) % 3 === 0
+  const l2 = flackert ? 0 : licht
+  r(159, 0, 2, 6, PAL.schnur); r(152, 6, 16, 4, mix('#8a6a45', '#3a2c1e')); r(155, 10, 10, 3, l2 > .2 ? PAL.lampe : PAL.lampeAus)
+  if (l2 > .05) { g.globalAlpha = .12 * l2; g.fillStyle = PAL.lampe; g.beginPath(); g.moveTo(152, 12); g.lineTo(168, 12); g.lineTo(230, H); g.lineTo(90, H); g.closePath(); g.fill(); g.globalAlpha = 1 }
+
+  // Schrecken: eine Gestalt in der Tuer, ein Gesicht im Fenster - nur fuer einen Moment
+  if (s.schreck === 'gestalt') { g.globalAlpha = .85; r(21, 18, 14, WAND_UNTEN - 22, '#07080f'); r(24, 16, 8, 6, '#07080f'); g.globalAlpha = 1 }
+  if (s.schreck === 'fenster') { g.globalAlpha = .7; r(276, 34, 10, 12, '#0b0d18'); r(278, 38, 2, 2, '#b9c3ff'); r(283, 38, 2, 2, '#b9c3ff'); g.globalAlpha = 1 }
 }
 
 function blend(a, b, t) {
@@ -145,16 +159,18 @@ function blend(a, b, t) {
 // Animierter Zeichner: Figuren gehen zu neuen Zielen, die Lampe blendet. Bei reduzierter Bewegung sofort.
 export function klasseAnimator(canvas) {
   const reduziert = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-  let szene = null, positionen = {}, lampe = 1, laeuft = false, sprecherBis = 0
+  let szene = null, positionen = {}, lampe = 1, laeuft = false, sprecherBis = 0, schreckBis = 0
   function schritt() {
     if (!szene) return
     let bewegt = false
-    const zielLampe = szene.layout.nacht ? 0 : 1
+    if (szene.schreck && Date.now() > schreckBis) szene.schreck = null
+    if (szene.schreck) bewegt = true
+    const zielLampe = szene.layout.nacht ? (szene.daemmerung ? 0.45 : 0) : 1
     if (Math.abs(lampe - zielLampe) > .01) { lampe = reduziert ? zielLampe : lampe + (zielLampe - lampe) * .12; bewegt = true } else lampe = zielLampe
     for (const f of szene.layout.figuren) {
       const p = positionen[f.name] || (positionen[f.name] = { x: f.x, y: f.y })
       const dx = f.x - p.x, dy = f.y - p.y
-      if (Math.abs(dx) + Math.abs(dy) > .5) { if (reduziert) { p.x = f.x; p.y = f.y } else { p.x += dx * .15; p.y += dy * .15; bewegt = true } } else { p.x = f.x; p.y = f.y }
+      if (Math.abs(dx) + Math.abs(dy) > .5) { if (reduziert || szene.daemmerung) { p.x = f.x; p.y = f.y } else { p.x += dx * .15; p.y += dy * .15; bewegt = true } } else { p.x = f.x; p.y = f.y }
     }
     if (szene.sprecher && Date.now() > sprecherBis) szene.sprecher = null
     zeichne(canvas, { ...szene, positionen, lampe })
@@ -162,8 +178,13 @@ export function klasseAnimator(canvas) {
   }
   return {
     setze(neu) {
-      szene = neu
+      szene = { ...neu, schreck: szene?.schreck ?? null }
       if (neu.sprecher) sprecherBis = Date.now() + 2500
+      if (!laeuft) { laeuft = true; requestAnimationFrame(schritt) }
+    },
+    erschrecke(art) {
+      if (!szene) return
+      szene.schreck = art; schreckBis = Date.now() + (art === 'flackern' ? 1400 : 700)
       if (!laeuft) { laeuft = true; requestAnimationFrame(schritt) }
     },
   }

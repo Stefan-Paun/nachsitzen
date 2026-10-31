@@ -12,6 +12,11 @@
 <header class="kopf">
   <div class="titel"><span class="lampe" id="lampe"></span> Nachsitzen</div>
   <div class="phase" id="phase">Die Tür ist noch offen.</div>
+  <div class="regler" role="group" aria-label="Einstellungen">
+    <button class="schalter" id="r-ton" aria-pressed="false" title="Wind und Klavier">Ton</button>
+    <button class="schalter" id="r-schrecken" aria-pressed="true" title="Kleine Schreckmomente in der Nacht">Schrecken</button>
+    <button class="schalter" id="r-daemmerung" aria-pressed="false" title="Alles ruhiger: heller, ohne Schrecken, ohne Bewegung">Dämmerung</button>
+  </div>
   <button class="knopf leise" id="heftknopf" hidden>Hefte lesen</button>
   <button class="knopf leise" id="neu" hidden>Neue Partie</button>
 </header>

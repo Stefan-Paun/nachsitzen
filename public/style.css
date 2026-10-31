@@ -28,6 +28,12 @@ body { background: var(--nacht); color: var(--text); font: 16px/1.45 -apple-syst
 .knopf:hover { filter: brightness(1.06); }
 .knopf.leise { background: transparent; border-color: var(--linie); color: var(--text); }
 .knopf:disabled { opacity: .5; cursor: default; }
+.regler { display: flex; gap: 4px; }
+.schalter { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--linie); background: transparent; color: var(--gedaempft); cursor: pointer; }
+.schalter[aria-pressed="true"] { background: var(--wand); color: var(--text); border-color: var(--gedaempft); }
+.schalter[aria-pressed="true"]::before { content: "● "; color: var(--lampe); font-size: 9px; vertical-align: 2px; }
+body.daemmerung { --nacht: #1a1e30; --tafel: #20253a; --wand: #2a3050; }
+body.daemmerung .lampe { transition: none; }
 
 .buehne { flex: 1; display: flex; min-height: 0; }
 .start { max-width: 560px; margin: 8vh auto; padding: 0 16px; }
@@ -140,5 +146,6 @@ body { background: var(--nacht); color: var(--text); font: 16px/1.45 -apple-syst
   .klasse li .s { display: none; }
   .sagen { flex-wrap: wrap; } .sagen input { min-width: 100%; order: -1; }
   .start h1 { font-size: 26px; }
-  .kopf { gap: 10px; padding: 10px 12px; } .phase { font-size: 13px; }
+  .kopf { gap: 8px; padding: 10px 12px; flex-wrap: wrap; } .phase { font-size: 13px; }
+  .schalter { font-size: 12px; padding: 4px 8px; }
 }
