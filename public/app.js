@@ -1,6 +1,8 @@
 // Nachsitzen im Browser: Verlauf aus Sicht des Spielers, Spurentafel (Raumplan, Wissen, Funde),
 // Pixel-Avatare und Eingaben an den Server. Alles Deutsch, keine Abhaengigkeiten.
 
+import { layout, zeichneFigur, klasseAnimator } from './klasse.js'
+
 const $ = (id) => document.getElementById(id)
 const ROLLE = { schatten: 'der Schatten', schluessel: 'der Schlüsselträger', schueler: 'ein normaler Schüler' }
 const PHASE = {
@@ -15,28 +17,16 @@ let tippende = new Map()
 let quelle = null
 let karten = { privat: null, morgen: null }
 let wissen = leeresWissen(0)
+const szene = klasseAnimator($('szene'))
+let sprecher = null, pulte = null
 
 function leeresWissen(nacht) { return { nacht, plaetze: {}, behauptet: {}, zettel: null, spur: null, staub: new Set(), durchgang: new Set(), zeilen: [], funde: [], opfer: null } }
 
-// --- Pixel-Avatare: 12x14 Raster, aus Hautfarbe, Haarfarbe, Frisur und Shirt -----------
+// --- Pixel-Avatare: dieselbe Figur wie in der Szene, nur groesser ------------------------
 function avatar(name, look, px = 4) {
-  const W = 12, H = 14
-  const c = document.createElement('canvas'); c.width = W * px; c.height = H * px
+  const c = document.createElement('canvas'); c.width = 12 * px; c.height = 14 * px
   c.setAttribute('role', 'img'); c.setAttribute('aria-label', name); c.title = name
-  const g = c.getContext('2d')
-  const dot = (x, y, f) => { g.fillStyle = f; g.fillRect(x * px, y * px, px, px) }
-  const rect = (x, y, w, h, f) => { g.fillStyle = f; g.fillRect(x * px, y * px, w * px, h * px) }
-  const { haut = '#f1cfb0', haar = '#2b2118', frisur = 'kurz', shirt = '#888' } = look || {}
-  const dunkler = (hex, k = .75) => { const n = parseInt(hex.slice(1), 16); const f = (v) => Math.round(v * k); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})` }
-  rect(3, 10, 6, 4, shirt); rect(2, 11, 1, 3, shirt); rect(9, 11, 1, 3, shirt)
-  rect(5, 9, 2, 1, haut); rect(3, 3, 6, 6, haut)
-  dot(4, 5, '#1b1f3a'); dot(7, 5, '#1b1f3a'); dot(5, 7, dunkler(haut, .8)); dot(6, 7, dunkler(haut, .8))
-  rect(3, 2, 6, 1, haar); rect(2, 3, 1, 2, haar); rect(9, 3, 1, 2, haar)
-  if (frisur === 'lang') { rect(2, 3, 1, 7, haar); rect(9, 3, 1, 7, haar); rect(3, 1, 6, 1, haar) }
-  if (frisur === 'bob') { rect(2, 3, 1, 5, haar); rect(9, 3, 1, 5, haar); rect(3, 1, 6, 1, haar); rect(3, 3, 6, 1, haar) }
-  if (frisur === 'zopf') { rect(3, 1, 6, 1, haar); rect(9, 4, 1, 5, haar); dot(9, 9, haar) }
-  if (frisur === 'wuschel') { rect(2, 1, 8, 2, haar); dot(1, 2, haar); dot(10, 2, haar); dot(4, 3, haar); dot(7, 3, haar) }
-  if (frisur === 'kurz') { rect(3, 1, 6, 1, haar) }
+  zeichneFigur(c.getContext('2d'), 0, 0, look, px)
   return c
 }
 
@@ -97,7 +87,7 @@ function zeigeEreignis(e) {
     case 'untersucht': blase(e.von, `${e.von === ich ? 'Du untersuchst' : 'untersucht'} ${e.ort === status?.klassenbuch ? 'das Klassenbuch' : `den Platz ${BEI[e.ort] || e.ort}`}.`, { still: true }); break
     case 'ergebnis': regie(`Nur du weißt das: ${e.text}`, 'geheim'); break
     case 'diskussion': regie(`Gespräch, Runde ${e.runde}${e.von ? ` von ${e.von}` : ''}`); break
-    case 'sagt': blase(e.von, e.text, { an: e.an }); break
+    case 'sagt': sprecher = e.von; blase(e.von, e.text, { an: e.an }); break
     case 'schweigt': blase(e.von, `${e.von === ich ? 'Du schweigst' : `${e.von} schweigt`}.`, { still: true }); break
     case 'abstimmung': regie(e.text, 'schwer'); break
     case 'stimme': blase(e.von, e.fuer ? `stimmt für ${e.fuer === ich ? 'dich' : e.fuer}.` : 'stimmt nicht ab.', { still: true }); break
@@ -139,8 +129,17 @@ function merke(e) {
   }
 }
 
+function zeigeSzene() {
+  if (!status) return
+  const namen = Object.keys(status.figuren || {})
+  if (!pulte) { pulte = {}; namen.forEach((n, i) => { pulte[n] = i }) }
+  const l = layout({ phase: status.phase, namen, lebende: status.lebende, verschwunden: status.verschwunden, keller: status.keller, spieler: status.spieler, zuschauen: status.zuschauen, plaetze: wissen.plaetze, opfer: wissen.opfer, pulte })
+  szene.setze({ layout: l, looks: status.figuren, spieler: status.spieler, spur: wissen.spur, staub: new Set([...wissen.staub, ...wissen.durchgang]), zettel: !!wissen.zettel, sprecher, ende: status.phase === 'ende', phase: status.phase })
+}
+
 function zeigeTafel() {
   if (!status) return
+  zeigeSzene()
   $('nachtnr').textContent = wissen.nacht ? `Nacht ${wissen.nacht}` : ''
   const plan = $('raumplan'); plan.innerHTML = ''
   const orte = status.orte || Object.keys(BEI)
@@ -290,7 +289,7 @@ $('sagen').onsubmit = (ev) => { ev.preventDefault(); const text = $('text').valu
 $('schweigen').onclick = () => sende({ art: 'schweigt' })
 
 // --- Start und Verbindung --------------------------------------------------------------
-function frisch() { verlauf.innerHTML = ''; tippende = new Map(); karten = { privat: null, morgen: null }; wissen = leeresWissen(0); $('meinerolle').textContent = '' }
+function frisch() { verlauf.innerHTML = ''; tippende = new Map(); karten = { privat: null, morgen: null }; wissen = leeresWissen(0); pulte = null; sprecher = null; $('meinerolle').textContent = '' }
 async function starten(zuschauen) {
   const r = await fetch('/partie', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: $('name').value, zuschauen }) })
   const d = await r.json()

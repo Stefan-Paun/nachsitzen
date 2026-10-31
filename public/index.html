@@ -32,7 +32,10 @@
   </section>
 
   <section class="raum" id="raum" hidden>
-    <div class="verlauf" id="verlauf" aria-live="polite"></div>
+    <div class="links">
+      <canvas class="szene" id="szene" width="320" height="120" role="img" aria-label="Das Klassenzimmer"></canvas>
+      <div class="verlauf" id="verlauf" aria-live="polite"></div>
+    </div>
     <aside class="tafel">
       <h2>Spurentafel <span class="nachtnr" id="nachtnr"></span></h2>
       <div class="raumplan" id="raumplan"></div>
@@ -60,6 +63,6 @@
   <div class="wahl" id="wahl" hidden></div>
 </footer>
 
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
