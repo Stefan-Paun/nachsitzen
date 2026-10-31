@@ -49,7 +49,8 @@ export function verlaufAlsText(ereignisse, ich) {
       case 'start': zeilen.push(`[Abend] ${e.text}`); break
       case 'nacht': zeilen.push(`[Nacht ${e.nacht}] ${e.text}`); break
       case 'platz': zeilen.push(`[Nacht ${e.nacht}] Du stellst dich ${bei(e.ort)} hin.`); break
-      case 'schatten-waehlt': zeilen.push(`[Nacht ${e.nacht}] Du schleichst zu ${e.ziel} und zurück.`); break
+      case 'schatten-waehlt': zeilen.push(`[Nacht ${e.nacht}] Du schleichst zu ${e.ziel} und zurück.${e.verwischt ? ' Du hast dir Zeit genommen und die Tinte mit dem Ärmel verwischt.' : ''}`); break
+      case 'wahrheit': break   // nur fuer die Anzeige am Ende
       case 'pruefung': zeilen.push(`[Nacht ${e.nacht}] Du prüfst ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`); break
       case 'beobachtung': zeilen.push(`[Nacht ${e.nacht}, was du mitbekommen hast] ${e.text}`); break
       case 'beweis': zeilen.push(`[BEWEIS, vom Spiel geprüft, wahr] ${e.von === ich ? 'Du zeigst' : `${e.von} zeigt`} das Ergebnis der Untersuchung ${e.ort === KLASSENBUCH ? 'im Klassenbuch' : bei(e.ort)}: ${e.text}`); break
@@ -79,7 +80,7 @@ const namenSchema = (namen, beschreibung) => ({ type: 'string', enum: namen, des
 const platzSchema = { type: 'string', enum: ORT_NAMEN, description: 'Wo du dich heute Nacht hinstellst. Das steht morgen vielleicht in einer Spur.' }
 const objekt = (properties) => ({ type: 'object', additionalProperties: false, required: Object.keys(properties), properties })
 
-export function werkzeuge(phase, rolle, andere) {
+export function werkzeuge(phase, rolle, andere, { verwischen = false } = {}) {
   const sprechen = {
     name: 'sprechen', description: 'Etwas sagen, das alle im Raum hören. Höchstens zwei Sätze.', strict: true,
     input_schema: objekt({ text: { type: 'string', description: 'Was du sagst, in deiner Art.' }, an: { anyOf: [{ type: 'string', enum: andere }, { type: 'null' }], description: 'Wen du direkt ansprichst, oder null für alle.' }, behauptetPlatz: { anyOf: [{ type: 'string', enum: ORT_NAMEN }, { type: 'null' }], description: 'Falls du in diesem Satz sagst, wo DU letzte Nacht standest (wahr oder gelogen): dieser Platz. Sonst null.' } }),
@@ -89,7 +90,11 @@ export function werkzeuge(phase, rolle, andere) {
     case 'abend': return [sprechen]
     case 'diskussion': return [sprechen, schweigen]
     case 'nacht':
-      if (rolle === SCHATTEN) return [{ name: 'holen', description: 'Deinen Platz wählen und diese Person heute Nacht holen: Sie verschwindet. Dein Weg hinterlässt Spuren.', strict: true, input_schema: objekt({ platz: platzSchema, ziel: namenSchema(andere, 'Wen du holst.') }) }]
+      if (rolle === SCHATTEN) {
+        const felder = { platz: platzSchema, ziel: namenSchema(andere, 'Wen du holst.') }
+        if (verwischen) felder.verwischen = { type: 'boolean', description: 'Einmal pro Partie: die Tintenspur verwischen. Dann zeigt sie keine Richtung und es gibt keinen Kreidestaub, aber wer neben dir steht, merkt fast sicher, dass du lange weg warst.' }
+        return [{ name: 'holen', description: 'Deinen Platz wählen und diese Person heute Nacht holen: Sie verschwindet. Dein Weg hinterlässt Spuren.', strict: true, input_schema: objekt(felder) }]
+      }
       if (rolle === SCHLUESSEL) return [{ name: 'pruefen', description: 'Deinen Platz wählen und diese Person heute Nacht prüfen: Du erfährst, ob sie der Schatten ist.', strict: true, input_schema: objekt({ platz: platzSchema, ziel: namenSchema(andere, 'Wen du prüfst.') }) }]
       return [{ name: 'verstecken', description: 'Deinen Platz für die Nacht wählen.', strict: true, input_schema: objekt({ platz: platzSchema }) }]
     case 'abstimmung': return [{ name: 'abstimmen', description: 'Dein geheimer Zettel: wer in den Keller soll, oder "niemand". Niemand sieht ihn vor der Auszählung.', strict: true, input_schema: objekt({ fuer: namenSchema([...andere, 'niemand'], 'Dein Kandidat oder niemand.') }) }]
@@ -100,7 +105,7 @@ export function werkzeuge(phase, rolle, andere) {
 const AUFGABE = {
   abend: 'Es ist Abend, ihr sitzt gerade erst fest. Sag einen Satz, der zu dir passt: ein Gedanke, eine Frage an jemanden, ein Spruch.',
   nacht: 'Es ist Nacht. Such dir einen Platz und entscheide heimlich.',
-  diskussion: 'Ihr redet. Du bist dran: Sag etwas (höchstens zwei Sätze, reagiere auf das Letzte, nutze deine Beobachtungen und Funde) oder schweig.',
+  diskussion: 'Ihr redet. Du bist dran: Sag etwas Neues (höchstens zwei Sätze, reagiere auf das Letzte, nutze deine Beobachtungen, Funde und vorgezeigte Beweise, wiederhole nicht, was du oder andere schon gesagt haben, und sprich nicht immer dieselbe Person an) oder schweig.',
   abstimmung: 'Abstimmung. Wer soll in den Keller? Entscheide anhand dessen, was du gesehen und gehört hast.',
 }
 
@@ -112,7 +117,7 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
 
   async function entscheide(phase, sicht, lebende, extra = {}) {
     const andere = phase === 'nacht' && extra.ziele ? extra.ziele : lebende.filter((n) => n !== name)
-    const tools = werkzeuge(phase, rolle, andere)
+    const tools = werkzeuge(phase, rolle, andere, { verwischen: !!extra.verwischen })
     const nachricht = `Was du bisher mitbekommen hast:\n${verlaufAlsText(sicht, name)}\n\nNoch im Raum: ${lebende.join(', ')}.\n${AUFGABE[phase]}`
     let erg
     try { erg = await anfrage({ system, nachricht, tools }) } catch (f) { erg = { werkzeug: null, grund: f.message } }
@@ -131,7 +136,7 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
       case 'holen':
       case 'pruefen':
         if (!ORT_NAMEN.includes(e.platz)) return verwerfe(`Platz ${e.platz} ungültig`)
-        return andere.includes(e.ziel) ? { platz: e.platz, ziel: e.ziel } : verwerfe(`Ziel ${e.ziel} ungültig`)
+        return andere.includes(e.ziel) ? { platz: e.platz, ziel: e.ziel, verwischen: w.name === 'holen' && e.verwischen === true } : verwerfe(`Ziel ${e.ziel} ungültig`)
       case 'abstimmen': return { art: 'stimme', fuer: andere.includes(e.fuer) ? e.fuer : null }
       default: return verwerfe('unbekanntes Werkzeug')
     }
@@ -179,7 +184,8 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
         vertrauen: { type: 'array', description: 'Wie sehr du jeder Person jetzt traust, von -2 (gar nicht) bis 2 (sehr).', items: objekt({ name: namenSchema(andere, 'Person'), wert: { type: 'integer', enum: [-2, -1, 0, 1, 2] } }) },   // strict: kein minimum/maximum, nur enum
       }) }
     const z = zusammenfassung
-    const nachricht = `Die Partie ist vorbei. ${z.sieger === 'schueler' ? 'Die Schüler haben gewonnen' : 'Der Schatten hat gewonnen'}; der Schatten war ${z.schatten}. Verschwunden: ${z.verschwunden.join(', ') || 'niemand'}. Im Keller: ${z.keller.join(', ') || 'niemand'}.\n\nWas du erlebt hast:\n${verlaufAlsText(sicht, name)}\n\nSchreib jetzt in dein Heft (Werkzeug heft_schreiben).`
+    const raus = !z.uebrig.includes(name)
+    const nachricht = `Die Partie ist vorbei. ${z.sieger === 'schueler' ? 'Die Schüler haben gewonnen' : 'Der Schatten hat gewonnen'}; der Schatten war ${z.schatten}. Verschwunden: ${z.verschwunden.join(', ') || 'niemand'}. Im Keller: ${z.keller.join(', ') || 'niemand'}.${raus ? ` Du selbst warst am Ende nicht mehr im Raum; was danach passiert ist, hast du erst erfahren, als die Tür aufging. Schreib nur über das, was du selbst erlebt hast, und über das Ergebnis.` : ''}\n\nWas du erlebt hast:\n${verlaufAlsText(sicht, name)}\n\nSchreib jetzt in dein Heft (Werkzeug heft_schreiben), höchstens fünf Sätze.`
     let erg
     try { erg = await anfrage({ system, nachricht, tools: [tool], maxTokens: 700 }) } catch (f) { erg = { werkzeug: null, grund: f.message } }
     if (erg.werkzeug?.name !== 'heft_schreiben') { log(`${name}: kein Hefteintrag (${erg.grund || 'leer'})`); return eintragBauen({ eintrag: `Die Nacht, in der ${z.schatten} der Schatten war. Mehr schreibe ich dazu nicht.`, vertrauen: [] }, andere) }

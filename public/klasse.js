@@ -1,13 +1,13 @@
-// Das Klassenzimmer als Pixelbild: Wand mit Tuer, Tafel und Fenster, sechs Pulte, die Lampe.
+// Das Klassenzimmer als Pixelbild: Wand mit Tuer, Tafel und Fenster, sieben Pulte, die Lampe.
 // layout() rechnet aus dem Wissensstand aus, wer wo gezeichnet wird (testbar ohne Browser);
 // zeichne() malt es. Logische Groesse 320x120 Pixel, der Browser skaliert pixelig hoch.
 
 export const B = 320, H = 120
 const WAND_UNTEN = 58
 
-// Zonen fuer die vier Plaetze (x-Mitte, y der Fuesse) und die sechs Pulte
+// Zonen fuer die vier Plaetze (x-Mitte, y der Fuesse) und die sieben Pulte (4 vorne, 3 hinten)
 export const ZONEN = { 'Tür': { x: 40, y: 88 }, 'Tafel': { x: 112, y: 76 }, 'Pulte': { x: 178, y: 104 }, 'Fenster': { x: 276, y: 86 } }   // Tuer-Zone steht rechts neben der Kellerluke
-export const PULTE = [[118, 84], [162, 84], [206, 84], [118, 106], [162, 106], [206, 106]]   // Tischkante links-oben
+export const PULTE = [[100, 84], [140, 84], [180, 84], [220, 84], [120, 106], [160, 106], [200, 106]]   // Tischkante links-oben
 const F = { 'Tür': '#3a2f28', 'Tafel': '#1f3a2e', 'Pulte': '#5b4630', 'Fenster': '#1c2440' }
 
 export const PAL = {

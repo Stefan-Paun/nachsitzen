@@ -16,6 +16,7 @@ const fabrik = (name, rolle, { zufall: z }) => skriptGehirn(name, rolle, z)
 // Liest SSE-Ereignisse, bis `bis(ereignisse)` wahr ist oder die Zeit um ist.
 async function sse(port, bis, { auf = async () => {}, zeit = 8000 } = {}) {
   const ac = new AbortController()
+  const wecker = setTimeout(() => ac.abort(), zeit)
   const r = await fetch(`http://127.0.0.1:${port}/ereignisse`, { signal: ac.signal })
   const leser = r.body.getReader(); const dec = new TextDecoder()
   const ereignisse = []; let rest = ''
@@ -33,7 +34,7 @@ async function sse(port, bis, { auf = async () => {}, zeit = 8000 } = {}) {
       }
       if (bis(ereignisse)) break
     }
-  } finally { ac.abort() }
+  } catch (f) { if (f.name !== 'AbortError') throw f } finally { clearTimeout(wecker); ac.abort() }
   return ereignisse
 }
 const post = (port, pfad, body) => fetch(`http://127.0.0.1:${port}${pfad}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(async (r) => ({ status: r.status, body: await r.json() }))
@@ -75,8 +76,9 @@ test('Server: Spieler-Partie, Eingaben per POST, private Ereignisse bleiben priv
     const rolle = body.rolle
     const ev = await sse(port, (l) => l.some((e) => e.art === 'status' && e.daten?.phase === 'ende'), {
       auf: async (e) => {
-        if (e.art !== 'warte' || !e.daten) return
-        const w = e.daten
+        // Die erste Eingabe kann schon vor dem Verbinden gefragt worden sein: dann steht sie im Status
+        const w = e.art === 'warte' ? e.daten : e.art === 'status' ? e.daten?.warte : null
+        if (!w) return
         if (w.art === 'sagen') await post(port, '/aktion', { art: 'sagt', text: 'Ich war am Fenster.', an: w.andere[0] })
         else if (w.art === 'stimme') await post(port, '/aktion', { fuer: w.optionen[0] })
         else if (w.art === 'nacht') await post(port, '/aktion', { platz: w.orte[0], ziel: w.optionen[0] })
@@ -109,13 +111,13 @@ test('Browser-Gehirn weist ungueltige Eingaben ab und loest gueltige ein', async
   assert.equal(g.aktion({ art: 'sagt', text: '  Hallo  ', an: null }), null)
   assert.deepEqual(await v, { art: 'sagt', text: 'Hallo', an: null, behauptet: null })
   const n = g.nacht([], ['Stefan', 'Mira', 'Lea'], { orte: ['Tür', 'Fenster'], ziele: ['Lea'] })
-  assert.deepEqual(g.wartetAuf(), { art: 'nacht', aufgabe: 'holen', orte: ['Tür', 'Fenster'], optionen: ['Lea'] })
+  assert.deepEqual(g.wartetAuf(), { art: 'nacht', aufgabe: 'holen', orte: ['Tür', 'Fenster'], optionen: ['Lea'], verwischen: false })
   assert.match(g.aktion({ ziel: 'Lea' }), /Du brauchst einen Platz\. Plätze: Tür, Fenster/)
   assert.match(g.aktion({ platz: 'Mond', ziel: 'Lea' }), /„Mond“ ist kein Platz/)
   assert.match(g.aktion({ platz: 'Tür', ziel: 'Mira' }), /Mira kannst du heute nicht holen\. Möglich: Lea/)
   assert.match(g.aktion({ platz: 'Tür' }), /wen du holst/)
   assert.equal(g.aktion({ platz: 'Tür', ziel: 'Lea' }), null)
-  assert.deepEqual(await n, { platz: 'Tür', ziel: 'Lea' })
+  assert.deepEqual(await n, { platz: 'Tür', ziel: 'Lea', verwischen: false })
   const u = g.untersuchen([], [], { orte: ['Tür', 'Klassenbuch'] })
   assert.match(g.aktion({ ort: 'Keller' }), /„Keller“ kannst du nicht untersuchen\. Möglich: Tür, Klassenbuch oder nichts/)
   assert.equal(g.aktion({ ort: null }), null)

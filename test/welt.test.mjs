@@ -44,7 +44,7 @@ test('Funde: Tintenspur mit Richtung, Kreidestaub auf dem echten Weg, Notiz nenn
   let notizen = 0
   for (let s = 1; s <= 40; s++) {
     const f = funde({ plaetze, schatten: 'Jonas', opfer: 'Lea', zufall: zufall(s) })   // Tuer -> Fenster
-    assert.equal(f[0].typ, 'spur'); assert.equal(f[0].ort, 'Fenster'); assert.equal(f[0].richtung, 'tuer'); assert.match(f[0].text, /Richtung Tür/); assert.match(f[0].text, /kam also von dort: bei der Tür oder an der Tafel oder bei den Pulten/)
+    assert.equal(f[0].typ, 'spur'); assert.equal(f[0].ort, 'Fenster'); assert.equal(f[0].richtung, 'tuer'); assert.match(f[0].text, /Richtung Tür/); assert.match(f[0].text, /bei der Tür oder an der Tafel oder bei den Pulten/)
     assert.equal(f[1].typ, 'staub'); assert.ok(['Tafel', 'Pulte'].includes(f[1].ort))
     const notiz = f.find((x) => x.typ === 'notiz')
     if (notiz) { notizen++; assert.equal(notiz.richtung, 'tuer'); assert.match(notiz.text, /von der Tür her/); assert.match(notiz.text, /Lea/) }
@@ -52,6 +52,12 @@ test('Funde: Tintenspur mit Richtung, Kreidestaub auf dem echten Weg, Notiz nenn
   assert.ok(notizen > 5 && notizen < 35)
   const g = funde({ plaetze: { ...plaetze, Jonas: 'Fenster' }, schatten: 'Jonas', opfer: 'Lea', zufall: zufall(3) })
   assert.equal(g[0].richtung, 'hier'); assert.ok(!g.some((x) => x.typ === 'staub'))
+  const v = funde({ plaetze, schatten: 'Jonas', opfer: 'Lea', zufall: zufall(3), verwischt: true })
+  assert.equal(v.length, 1); assert.equal(v[0].verwischt, true); assert.equal(v[0].richtung, null)
+  const texte = new Set(); for (let s = 1; s <= 30; s++) texte.add(funde({ plaetze, schatten: 'Jonas', opfer: 'Lea', zufall: zufall(s) })[0].text.slice(0, 20))
+  assert.ok(texte.size >= 2, 'mindestens zwei Spur-Formulierungen')
+  let bemerkt = 0; for (let s = 1; s <= 100; s++) if (beobachtungen({ plaetze, lebende: NAMEN, schatten: 'Jonas', opfer: 'Lea', zufall: zufall(s), verwischt: true }).Mira.some((z) => z.typ === 'bewegung')) bemerkt++
+  assert.ok(bemerkt > 75, `nur ${bemerkt}/100 bemerkt`)
 })
 
 test('Tagesereignis: Zettel luegt nie und traegt den ausgeschlossenen Ort, alle Arten kommen vor', () => {

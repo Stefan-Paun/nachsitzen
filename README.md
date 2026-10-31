@@ -1,6 +1,6 @@
 # Nachsitzen
 
-Nachts in der Schule eingesperrt, mit fünf KI-Figuren. Eine davon ist der Schatten.
+Nachts in der Schule eingesperrt, mit sechs KI-Figuren. Eine davon ist der Schatten.
 
 ![Eine Partie Nachsitzen: das Pixel-Klassenzimmer, darunter der Chat der Figuren, rechts die Spurentafel](docs/img/demo.gif)
 
@@ -12,7 +12,7 @@ Ein Spiel im Stil von Werwolf: Die Mitspieler sind Claude-Figuren mit eigenem Wi
 
 | Phase | |
 |---|---|
-| Abend | Sechs sitzen fest: du und fünf Figuren mit eigenem Kopf. Eine ist der Schatten, eine hat den Schlüssel. |
+| Abend | Sieben sitzen fest: du und sechs Figuren mit eigenem Kopf. Eine ist der Schatten, eine hat den Schlüssel. |
 | Nacht | Jeder stellt sich an einen von vier Plätzen. Der Schatten schleicht zu seinem Opfer. Du bekommst mit, was in deiner Nähe passiert: Schritte, jemand, der sich bewegt, wer neben dir steht. |
 | Morgen | Ein Pult ist leer. Die Tintenspur zeigt, von welcher Seite der Schatten kam, Kreidestaub, wo er durchging, manchmal bleibt ein halber Satz des Opfers. Jeder darf einen Platz oder das Klassenbuch untersuchen und sein Ergebnis **vorzeigen**: Vorgezeigt gilt es als bewiesen. |
 | Gespräch | Die Figuren vergleichen Behauptungen mit dem, was sie gesehen haben. Wer über seinen Platz lügt, kann auffliegen. Wer angesprochen wird, antwortet als Nächster. |
@@ -21,13 +21,13 @@ Ein Spiel im Stil von Werwolf: Die Mitspieler sind Claude-Figuren mit eigenem Wi
 
 In der ersten Nacht holt der Schatten nie den menschlichen Spieler. Danach bist du dran wie alle. Scheidest du aus, schaust du als Geist weiter zu.
 
-Begriffe: Die Schule hat sechs **Pulte** (eines je Figur) und vier **Plätze** für die Nacht (Tür, Tafel, Pulte, Fenster). Wer verschwindet, wurde vom Schatten geholt; wer im **Keller** sitzt, wurde eingesperrt.
+Begriffe: Die Schule hat sieben **Pulte** (eines je Figur) und vier **Plätze** für die Nacht (Tür, Tafel, Pulte, Fenster). Wer verschwindet, wurde vom Schatten geholt; wer im **Keller** sitzt, wurde eingesperrt.
 
 Regler oben: **Ton** (Wind und Klavier aus WebAudio), **Schrecken** (höchstens einer pro Nacht, nie während du dran bist), **Dämmerung** (alles ruhiger, heller, ohne Bewegung).
 
 Mitspielen geht auch ohne Browser: `node tools/zug.mjs 4800 --neu Stefan`, dann `node tools/zug.mjs 4800` und die Befehle, die es vorschlägt.
 
-Seit M2.5 passiert nachts wirklich etwas: Jeder stellt sich an einen von sechs Plätzen, der Schatten schleicht zum Opfer und hinterlässt Tintenspur und Kreidestaub, jede Figur bekommt wahre Beobachtungen, tagsüber darf man einen Platz oder das Klassenbuch untersuchen. Alibis lassen sich prüfen, Lügen können auffliegen. Die Spurentafel rechts sammelt, was du sicher weißt, und vergleicht es mit dem, was jeder behauptet.
+Seit M2.5 passiert nachts wirklich etwas: Jeder stellt sich an einen von vier Plätzen, der Schatten schleicht zum Opfer und hinterlässt Tintenspur und Kreidestaub, jede Figur bekommt wahre Beobachtungen, tagsüber darf man einen Platz oder das Klassenbuch untersuchen. Alibis lassen sich prüfen, Lügen können auffliegen. Die Spurentafel rechts sammelt, was du sicher weißt, und vergleicht es mit dem, was jeder behauptet.
 
 Nach jeder Partie schreibt jede Figur in ihr **Heft** (`~/.local/share/nachsitzen/hefte/`), wem sie traut und wer gelogen hat. Beim nächsten Spiel liest sie es wieder: Wer Nora einmal als Schatten reingelegt hat, bekommt das zu spüren.
 

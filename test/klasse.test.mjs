@@ -32,6 +32,9 @@ test('Morgen zaehlt noch als Nacht-Bild; eigene Pultzuordnung wird respektiert',
   const t = layout({ ...basis, phase: 'abend', pulte: { Stefan: 0, Mira: 5 } })
   const st = t.figuren.find((f) => f.name === 'Stefan'), mi = t.figuren.find((f) => f.name === 'Mira')
   assert.equal(st.x, PULTE[0][0] + 6); assert.equal(mi.x, PULTE[5][0] + 6)
+  assert.equal(PULTE.length, 7, 'sieben Pulte fuer sieben Figuren')
+  const sieben = layout({ ...basis, phase: 'abend', namen: [...NAMEN, 'Sam'], lebende: [...NAMEN, 'Sam'] })
+  assert.equal(new Set(sieben.figuren.map((f) => `${f.x},${f.y}`)).size, 7, 'jede Figur ein eigenes Pult')
 })
 
 test('Schrecken: nie zweimal derselbe, nie wenn alle verbraucht, nur mit Wahrscheinlichkeit', () => {

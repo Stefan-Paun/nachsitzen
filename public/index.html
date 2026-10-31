@@ -14,7 +14,7 @@
   <div class="phase" id="phase">Die Tür ist noch offen.</div>
   <div class="regler" role="group" aria-label="Einstellungen">
     <button class="schalter" id="r-ton" aria-pressed="false" title="Wind und Klavier">Ton</button>
-    <button class="schalter" id="r-schrecken" aria-pressed="true" title="Kleine Schreckmomente in der Nacht">Schrecken</button>
+    <button class="schalter" id="r-schrecken" aria-pressed="true" title="Kleine Schreckmomente in der Nacht (Gestalt, Fenster, Flackern)">Schrecken</button>
     <button class="schalter" id="r-daemmerung" aria-pressed="false" title="Alles ruhiger: heller, ohne Schrecken, ohne Bewegung">Dämmerung</button>
   </div>
   <button class="knopf leise" id="heftknopf" hidden>Hefte lesen</button>
@@ -23,8 +23,8 @@
 
 <main class="buehne">
   <section class="start" id="start">
-    <h1>Nachts in der Schule.<br>Sechs Pulte, eine Lampe.</h1>
-    <p>Fünf Mitschüler, die wirklich reden, lügen und abstimmen. Einer von euch ist <b>der Schatten</b>. Vielleicht du.</p>
+    <h1>Nachts in der Schule.<br>Sieben Pulte, eine Lampe.</h1>
+    <p>Sechs Mitschüler, die wirklich reden, lügen und abstimmen. Einer von euch ist <b>der Schatten</b>. Vielleicht du.</p>
     <p>Nachts stellt sich jeder an einen von vier Plätzen. Der Schatten schleicht zu seinem Opfer und hinterlässt Spuren. Am Morgen zählt, wer was gesehen hat und wer über seinen Platz lügt.</p>
     <form id="startform">
       <label>Dein Name <input id="name" value="Stefan" maxlength="20" autocomplete="off"></label>
@@ -59,6 +59,7 @@
 
 <footer class="eingabe" id="eingabe" hidden>
   <div class="hinweis" id="hinweis"></div>
+  <div class="fehler" id="fehler" role="alert"></div>
   <form class="sagen" id="sagen" hidden>
     <select id="an" aria-label="An wen"><option value="">an alle</option></select>
     <input id="text" maxlength="300" placeholder="Was sagst du?" autocomplete="off">

@@ -18,7 +18,7 @@ export function browserGehirn(name, rolle, { sende }) {
     name, rolle,
     abend: (sicht, lebende) => frage({ art: 'sagen', pflicht: true, andere: andere(lebende) }),
     diskussion: (sicht, lebende) => frage({ art: 'sagen', pflicht: false, andere: andere(lebende) }),
-    nacht: (sicht, lebende, { orte, ziele }) => frage({ art: 'nacht', aufgabe: rolle === SCHATTEN ? 'holen' : rolle === SCHLUESSEL ? 'pruefen' : 'verstecken', orte, optionen: ziele ?? andere(lebende) }),
+    nacht: (sicht, lebende, { orte, ziele, verwischen }) => frage({ art: 'nacht', aufgabe: rolle === SCHATTEN ? 'holen' : rolle === SCHLUESSEL ? 'pruefen' : 'verstecken', orte, optionen: ziele ?? andere(lebende), verwischen: !!verwischen }),
     untersuchen: (sicht, lebende, { orte }) => frage({ art: 'untersuchen', orte }),
     zeigen: (sicht, lebende, { ergebnis }) => frage({ art: 'zeigen', ergebnis: ergebnis.text }),
     abstimmung: (sicht, lebende) => frage({ art: 'stimme', optionen: andere(lebende) }),
@@ -43,7 +43,7 @@ export function browserGehirn(name, rolle, { sende }) {
       } else if (was.art === 'nacht') {
         if (!was.orte.includes(a.platz)) return `${a.platz ? `„${a.platz}“ ist kein Platz` : 'Du brauchst einen Platz'}. Plätze: ${was.orte.join(', ')}`
         if (was.aufgabe !== 'verstecken' && !was.optionen.includes(a.ziel)) return `${a.ziel ? `${a.ziel} kannst du heute nicht ${was.aufgabe === 'holen' ? 'holen' : 'prüfen'}` : `Du musst auch sagen, wen du ${was.aufgabe === 'holen' ? 'holst' : 'prüfst'}`}. Möglich: ${was.optionen.join(', ')}`
-        ergebnis = { platz: a.platz, ziel: was.aufgabe === 'verstecken' ? undefined : a.ziel }
+        ergebnis = { platz: a.platz, ziel: was.aufgabe === 'verstecken' ? undefined : a.ziel, verwischen: was.verwischen && !!a.verwischen }
       } else if (was.art === 'untersuchen') {
         if (a.ort != null && !was.orte.includes(a.ort)) return `„${a.ort}“ kannst du nicht untersuchen. Möglich: ${was.orte.join(', ')} oder nichts`
         ergebnis = a.ort ? { ort: a.ort } : null

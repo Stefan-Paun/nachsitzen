@@ -8,8 +8,8 @@ import { SCHATTEN, SCHLUESSEL, SCHUELER } from '../spiel/rollen.mjs'
 const NAMEN = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora', 'Stefan']
 const FIGUREN = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora']
 
-test('Alle fuenf Figuren laden und haben Name, Beschreibung, Stil, 3 Beispiele', () => {
-  for (const n of FIGUREN) {
+test('Alle sieben Figuren laden und haben Name, Beschreibung, Stil, 3 Beispiele', () => {
+  for (const n of [...FIGUREN, 'Sam', 'Ben']) {
     const f = ladeFigur(n)
     assert.equal(f.name, n)
     assert.ok(f.beschreibung.length > 50 && f.stil.length > 20)
@@ -43,6 +43,8 @@ test('Werkzeuge je Phase und Rolle, Namen als enum', () => {
   assert.deepEqual(ab.input_schema.properties.fuer.enum, ['Mira', 'Jonas', 'niemand'])
   assert.ok(!('begruendung' in ab.input_schema.properties), 'geheime Zettel ohne laute Begründung')
   assert.ok(werkzeuge('nacht', SCHATTEN, andere)[0].strict)
+  assert.ok(!('verwischen' in werkzeuge('nacht', SCHATTEN, andere)[0].input_schema.properties), 'ohne Erlaubnis kein Verwischen-Feld')
+  assert.equal(werkzeuge('nacht', SCHATTEN, andere, { verwischen: true })[0].input_schema.properties.verwischen.type, 'boolean')
 })
 
 test('Verlauf als Text: private Zeilen nur in der eigenen Sicht, "Du" statt Name', () => {
@@ -110,7 +112,9 @@ test('Claude-Gehirn: Ablehnung, Fehler und falsches Werkzeug fallen harmlos zuru
   assert.equal(log.length, 5)
   // Nacht: nur erlaubte Ziele (Nacht-1-Schutz kommt aus der Schleife)
   const g2 = claudeGehirn(ladeFigur('Lea'), SCHATTEN, { anfrage: async (req) => ({ werkzeug: { name: 'holen', eingabe: { platz: 'Tür', ziel: req.tools[0].input_schema.properties.ziel.enum[0] } } }), mitspieler: NAMEN, zufall: zufall(3) })
-  assert.deepEqual(await g2.nacht([], ['Lea', 'Mira', 'Stefan'], { orte: P.ORT_NAMEN, ziele: ['Mira'] }), { platz: 'Tür', ziel: 'Mira' })
+  assert.deepEqual(await g2.nacht([], ['Lea', 'Mira', 'Stefan'], { orte: P.ORT_NAMEN, ziele: ['Mira'] }), { platz: 'Tür', ziel: 'Mira', verwischen: false })
+  const g4 = claudeGehirn(ladeFigur('Lea'), SCHATTEN, { anfrage: async () => ({ werkzeug: { name: 'holen', eingabe: { platz: 'Tür', ziel: 'Mira', verwischen: true } } }), mitspieler: NAMEN, zufall: zufall(3) })
+  assert.equal((await g4.nacht([], ['Lea', 'Mira'], { orte: P.ORT_NAMEN, ziele: ['Mira'], verwischen: true })).verwischen, true)
   // Vorzeigen: belastende Ergebnisse zeigt ein Schüler meist, der Schatten kaum
   let ja = 0; for (let i = 0; i < 50; i++) if (g2.zeigen([], [], { ergebnis: { ort: 'Tafel', namen: ['Mira'], durchgang: false } })) ja++
   assert.ok(ja < 25, `Schatten zeigt zu oft (${ja})`)
@@ -130,7 +134,7 @@ test('Claude-Gehirn: echte Nacht-Antwort wird zu Platz und Ziel; Untersuchen bra
   let aufrufe = 0
   const anfrage = async () => { aufrufe++; return { werkzeug: { name: 'pruefen', eingabe: { platz: 'Fenster', ziel: 'Mira' } } } }
   const g = claudeGehirn(ladeFigur('Nora'), SCHLUESSEL, { anfrage, mitspieler: NAMEN, zufall: zufall(9) })
-  assert.deepEqual(await g.nacht([], ['Nora', 'Mira', 'Lea'], { orte: P.ORT_NAMEN }), { platz: 'Fenster', ziel: 'Mira' })
+  assert.deepEqual(await g.nacht([], ['Nora', 'Mira', 'Lea'], { orte: P.ORT_NAMEN }), { platz: 'Fenster', ziel: 'Mira', verwischen: false })
   const sicht = [{ art: 'fund', nacht: 1, text: 'Kreidestaub an der Tafel, als wäre jemand nur durchgegangen.' }]
   const ergebnisse = new Set()
   for (let i = 0; i < 40; i++) { const u = g.untersuchen(sicht, NAMEN, { orte: [...P.ORT_NAMEN, 'Klassenbuch'] }); if (u) ergebnisse.add(u.ort) }

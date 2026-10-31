@@ -20,7 +20,8 @@ import { hefteSpeicher } from './spiel/hefte.mjs'
 
 const HIER = path.dirname(fileURLToPath(import.meta.url))
 const OEFFENTLICH = path.join(HIER, 'public')
-export const KI_FIGUREN = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora']
+export const KI_FIGUREN = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora', 'Sam']
+const ZUSCHAUER_ERSATZ = 'Ben'   // nimmt den Platz des Menschen ein, wenn nur zugeschaut wird
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' }
 
 // gehirnFabrik(name, rolle, { mitspieler, spieler, zufall }) -> Gehirn; im Test Skript-Gehirne statt Claude
@@ -48,11 +49,11 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
   function neuePartie({ name, zuschauen }) {
     if (spiel && spiel.p.phase !== 'ende') spiel.mensch?.abbrechen()
     const spieler = zuschauen ? null : (String(name || 'Stefan').trim().slice(0, 20) || 'Stefan')
-    const namen = [...KI_FIGUREN, zuschauen ? 'Sam' : spieler]
+    const namen = [...KI_FIGUREN, zuschauen ? ZUSCHAUER_ERSATZ : spieler]
     if (new Set(namen.map((n) => n.toLowerCase())).size !== namen.length) throw new Error('Der Name ist schon vergeben')
     const z = zufall(startwert ?? Date.now())
     const p = P.neuePartie(namen, z, { spieler })
-    const figuren = Object.fromEntries(namen.map((n) => [n, KI_FIGUREN.includes(n) ? ladeFigur(n).aussehen : (n === 'Sam' ? { haut: '#e9c2a0', haar: '#5a3a22', frisur: 'kurz', shirt: '#6b6b6b' } : { haut: '#f1cfb0', haar: '#2b2118', frisur: 'wuschel', shirt: '#bd93f9' })]))
+    const figuren = Object.fromEntries(namen.map((n) => [n, n === spieler ? { haut: '#f1cfb0', haar: '#2b2118', frisur: 'wuschel', shirt: '#bd93f9' } : ladeFigur(n).aussehen]))
     const gehirne = {}
     let mensch = null
     for (const n of namen) {
@@ -125,7 +126,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
       if (req.method === 'GET' && url.pathname === '/hefte') {
         // Nur zwischen den Partien lesbar - waehrend des Spiels wuesste der Spieler sonst, wer ihm misstraut
         if (!hefte || (spiel && spiel.p.phase !== 'ende')) { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ fehler: 'Hefte gibt es erst nach der Partie' })); return }
-        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(hefte.alle(KI_FIGUREN)))
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(hefte.alle([...KI_FIGUREN, ZUSCHAUER_ERSATZ])))
         return
       }
       if (req.method === 'GET' && url.pathname === '/verlauf') {
@@ -177,9 +178,7 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
   } else {
   const kosten = kostenRechner()
   const anfrage = claudeAnfrage({ schluessel: apiSchluessel(), kosten, log: (m) => console.log(`  (${m})`) })
-  const fabrik = (name, rolle, opts) => claudeGehirn(name === 'Sam'
-    ? { name: 'Sam', alter: 17, beschreibung: 'Neu in der Klasse, freundlich, etwas zu vertrauensselig. Du willst dazugehören und sagst zu oft „ehrlich gesagt“.', stil: 'Höflich, fragt viel, entschuldigt sich beim Widersprechen.', beispiele: ['Sorry, wer von euch war das nochmal beim Fenster?', 'Ehrlich gesagt versteh ich nicht, warum alle auf Jonas zeigen.', 'Ich will niemandem was unterstellen, aber das passt nicht.'] }
-    : ladeFigur(name), rolle, { anfrage, ...opts, log: (m) => console.log(`  (${m})`) })
+  const fabrik = (name, rolle, opts) => claudeGehirn(ladeFigur(name), rolle, { anfrage, ...opts, log: (m) => console.log(`  (${m})`) })
   const s = erstelleServer({ gehirnFabrik: fabrik, hefte: hefteSpeicher() })
   const port = await s.starten()
   console.log(`Nachsitzen laeuft auf http://localhost:${port}`)

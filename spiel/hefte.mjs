@@ -49,6 +49,9 @@ export function eintragBauen({ eintrag, vertrauen }, namen) {
     const ende = Math.max(kurz.lastIndexOf('. '), kurz.lastIndexOf('! '), kurz.lastIndexOf('? '))
     text = ende > 200 ? kurz.slice(0, ende + 1) : kurz
   }
+  // Hoechstens fuenf Saetze: die Figuren schreiben sonst Romane
+  const saetze = text.match(/[^.!?]+[.!?]+(\s|$)/g)
+  if (saetze && saetze.length > 5) text = saetze.slice(0, 5).join('').trim()
   if (!text) text = 'Eine Nacht, über die ich nicht reden will.'
   const v = {}
   for (const x of Array.isArray(vertrauen) ? vertrauen : []) {

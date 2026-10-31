@@ -19,8 +19,8 @@ import { hefteSpeicher } from '../spiel/hefte.mjs'
 const argv = process.argv.slice(2)
 const zuschauen = argv.includes('--zuschauen')
 const spieler = zuschauen ? null : (argv[argv.indexOf('--name') + 1] || 'Stefan')
-const KI = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora']
-const namen = zuschauen ? [...KI, 'Sam'] : [...KI, spieler]
+const KI = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora', 'Sam']
+const namen = zuschauen ? [...KI, 'Ben'] : [...KI, spieler]
 
 const rl = readline.createInterface({ input: stdin, output: stdout })
 const z = zufall()
@@ -71,8 +71,7 @@ function menschGehirn(name) {
 const gehirne = {}
 for (const n of namen) {
   gehirne[n] = n === spieler ? menschGehirn(n)
-    : claudeGehirn(n === 'Sam' ? { name: 'Sam', alter: 17, beschreibung: 'Neu in der Klasse, freundlich, etwas zu vertrauensselig.', stil: 'Höflich, fragt viel.', beispiele: ['Sorry, wer von euch war das nochmal beim Fenster?'] } : ladeFigur(n),
-      p.rollen[n], { anfrage, mitspieler: namen, spieler, zufall: z, heft: hefte.alsText(n), log: (m) => console.log(`  (${m})`) })
+    : claudeGehirn(ladeFigur(n), p.rollen[n], { anfrage, mitspieler: namen, spieler, zufall: z, heft: hefte.alsText(n), log: (m) => console.log(`  (${m})`) })
 }
 
 console.log('\n=== NACHSITZEN ===')

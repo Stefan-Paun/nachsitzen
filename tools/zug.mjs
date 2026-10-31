@@ -3,7 +3,7 @@
 //   node tools/zug.mjs <port>                         neue Ereignisse zeigen + worauf das Spiel wartet
 //   node tools/zug.mjs <port> --sagen "Text" [--an Name]
 //   node tools/zug.mjs <port> --schweigen
-//   node tools/zug.mjs <port> --platz Tür [--ziel Mira]   (Nacht; Ziel nur fuer Schatten/Schluesseltraeger)
+//   node tools/zug.mjs <port> --platz Tür [--ziel Mira] [--verwischen]   (Nacht; Ziel nur fuer Schatten/Schluesseltraeger)
 //   node tools/zug.mjs <port> --untersuchen Tafel|Klassenbuch|nichts
 //   node tools/zug.mjs <port> --zeigen ja|nein             (eigenes Untersuchungsergebnis allen vorzeigen)
 //   node tools/zug.mjs <port> --stimme Nora|niemand        (geheim; wird erst am Ende aufgedeckt)
@@ -43,7 +43,7 @@ Die Schüler gewinnen, wenn der Schatten im Keller ist; der Schatten, wenn nur n
 let antwort = null
 if (arg('--sagen')) antwort = await post('/aktion', { art: 'sagt', text: String(arg('--sagen')), an: typeof arg('--an') === 'string' ? arg('--an') : null })
 else if (arg('--schweigen')) antwort = await post('/aktion', { art: 'schweigt' })
-else if (arg('--platz')) antwort = await post('/aktion', { platz: arg('--platz'), ziel: typeof arg('--ziel') === 'string' ? arg('--ziel') : undefined })
+else if (arg('--platz')) antwort = await post('/aktion', { platz: arg('--platz'), ziel: typeof arg('--ziel') === 'string' ? arg('--ziel') : undefined, verwischen: !!arg('--verwischen') })
 else if (arg('--untersuchen')) antwort = await post('/aktion', { ort: arg('--untersuchen') === 'nichts' ? null : arg('--untersuchen') })
 else if (arg('--zeigen')) antwort = await post('/aktion', { zeigen: arg('--zeigen') !== 'nein' })
 else if (arg('--stimme')) antwort = await post('/aktion', { fuer: arg('--stimme') === 'niemand' ? null : arg('--stimme') })
@@ -55,7 +55,7 @@ if (arg('--hefte')) {
   const h = await fetch(basis + '/hefte').then(json)
   if (!h.fehler && !Object.values(h).some((l) => l.length)) console.log('Noch keine Hefteinträge (die Figuren schreiben noch oder es lief ohne KI).')
   if (h.fehler) console.log(h.fehler)
-  else for (const [n, liste] of Object.entries(h)) { const e = liste.at(-1); if (e) console.log(`\n${n}: ${e.eintrag}\n  Vertrauen: ${Object.entries(e.vertrauen || {}).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}`).join(', ') || '-'}`) }
+  else { console.log('Die Hefte (Vertrauen: -2 traut gar nicht … +2 vertraut):'); for (const [n, liste] of Object.entries(h)) { const e = liste.at(-1); if (e) console.log(`\n${n}: ${e.eintrag}\n  Vertrauen: ${Object.entries(e.vertrauen || {}).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}`).join(', ') || '-'}`) } }
   process.exit(0)
 }
 
@@ -66,7 +66,11 @@ for (;;) {
   const v = await fetch(basis + '/verlauf?ab=' + gezeigt).then(json)
   status = v.status
   for (const e of v.ereignisse) {
-    const z = e.art === 'rolle' ? (e.name === status?.spieler ? `[Deine Rolle] ${e.rolle}` : '') : e.art === 'ende' ? `[ENDE] ${e.sieger === 'schueler' ? 'Die Schüler gewinnen' : 'Der Schatten gewinnt'}. Der Schatten war ${e.schatten}.` : verlaufAlsText([e], status?.spieler)
+    const ROLLE = { schatten: 'der Schatten (du holst nachts jemanden; lüge über deinen Platz; gewinne, wenn nur noch zwei übrig sind)', schluessel: 'der Schlüsselträger (du prüfst nachts eine Person und erfährst, ob sie der Schatten ist; teile es klug)', schueler: 'ein normaler Schüler (finde den Schatten über Spuren, Beobachtungen und Widersprüche)' }
+    const z = e.art === 'rolle' ? (e.name === status?.spieler ? `[Deine Rolle] ${ROLLE[e.rolle] || e.rolle}` : '')
+      : e.art === 'ende' ? `[ENDE] ${e.sieger === 'schueler' ? 'Die Schüler gewinnen' : 'Der Schatten gewinnt'}. Der Schatten war ${e.schatten}.`
+      : e.art === 'wahrheit' ? `[DIE WAHRHEIT] Rollen: ${Object.entries(e.rollen).map(([n, r]) => `${n}=${r}`).join(', ')}\n` + e.naechte.map((n) => `  Nacht ${n.nacht}: ${Object.entries(n.plaetze).map(([k, o]) => `${k}@${o}`).join(' ')} · Schatten ${n.schatten} holt ${n.opfer}${n.verwischt ? ' (Spur verwischt)' : ''}`).join('\n')
+      : verlaufAlsText([e], status?.spieler)
     if (z) console.log(z)
     if (!rausGemeldet && status?.spieler && ((e.art === 'verschwunden' && e.name === status.spieler) || (e.art === 'eingesperrt' && e.name === status.spieler))) {
       console.log(`\n>>> DU BIST RAUS (${e.art === 'verschwunden' ? 'der Schatten hat dich geholt' : 'die anderen haben dich in den Keller gesperrt'}). Du schaust als Geist weiter zu: einfach weiter aufrufen, bis die Partie vorbei ist.`)
@@ -84,7 +88,7 @@ const w = status.warte
 console.log(`\n--- Noch im Raum: ${status.lebende.join(', ')} · Phase: ${status.phase} · Nacht ${status.nacht}`)
 if (!w) console.log('--- Die anderen sind dran. Nochmal aufrufen.')
 else if (w.art === 'sagen') console.log(`--- DU BIST DRAN: --sagen "..." [--an ${w.andere.join('|')}]${w.pflicht ? ' (Pflicht)' : ' oder --schweigen'}`)
-else if (w.art === 'nacht') console.log(`--- NACHT: --platz ${w.orte.join('|')}${w.aufgabe !== 'verstecken' ? ` --ziel ${w.optionen.join('|')}  (${w.aufgabe})` : ''}`)
+else if (w.art === 'nacht') console.log(`--- NACHT: --platz ${w.orte.join('|')}${w.aufgabe !== 'verstecken' ? ` --ziel ${w.optionen.join('|')}  (${w.aufgabe === 'holen' ? 'Pflicht: wen du holst' : 'Pflicht: wen du prüfst'})` : ''}${w.verwischen ? ' [--verwischen: einmalig die Spur verwischen]' : ''}`)
 else if (w.art === 'untersuchen') console.log(`--- UNTERSUCHEN: --untersuchen ${w.orte.join('|')}|nichts`)
 else if (w.art === 'zeigen') console.log(`--- VORZEIGEN? Dein Ergebnis: „${w.ergebnis}“ · --zeigen ja|nein (vorgezeigt = für alle bewiesen)`)
 else if (w.art === 'stimme') console.log(`--- ABSTIMMUNG (geheim): --stimme ${w.optionen.join('|')}|niemand`)

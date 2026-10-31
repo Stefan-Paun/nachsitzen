@@ -8,7 +8,7 @@ import { spieleBisZumEnde } from '../spiel/schleife.mjs'
 import { SCHATTEN, SCHLUESSEL } from '../spiel/rollen.mjs'
 import { skriptGehirn } from './skriptgehirne.mjs'
 
-export const FIGUREN = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora', 'Stefan']
+export const FIGUREN = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora', 'Sam', 'Stefan']
 
 export async function spielePartie(startwert, namen = FIGUREN) {
   const z = zufall(startwert)

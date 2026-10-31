@@ -6,6 +6,11 @@ import { tonAnlage } from './ton.js'
 
 const $ = (id) => document.getElementById(id)
 const ROLLE = { schatten: 'der Schatten', schluessel: 'der Schlüsselträger', schueler: 'ein normaler Schüler' }
+const ROLLE_ERKLAERT = {
+  schatten: 'Du holst nachts jemanden. Lüge über deinen Platz, lenke ab. Du gewinnst, wenn nur noch zwei übrig sind. Einmal kannst du die Spur verwischen.',
+  schluessel: 'Du prüfst nachts eine Person und erfährst sicher, ob sie der Schatten ist. Teile es klug: zu früh, und der Schatten holt dich.',
+  schueler: 'Finde den Schatten: Vergleiche, was die anderen über ihre Plätze sagen, mit Spuren, Beobachtungen und Beweisen.',
+}
 const PHASE = {
   abend: 'Abend. Die Tür ist zu.', nacht: 'Nacht. Die Lampe ist aus.', morgen: 'Morgen.',
   diskussion: 'Ihr redet.', abstimmung: 'Abstimmung: Wer kommt in den Keller?', ergebnis: 'Ergebnis.', ende: 'Ende.',
@@ -97,10 +102,16 @@ function zeigeEreignis(e) {
   merke(e)
   switch (e.art) {
     case 'start': regie(e.text); break
-    case 'rolle': if (e.name === ich) $('meinerolle').textContent = `Deine Rolle: ${ROLLE[e.rolle]}.`; break
+    case 'rolle': if (e.name === ich) $('meinerolle').textContent = `Deine Rolle: ${ROLLE[e.rolle]}. ${ROLLE_ERKLAERT[e.rolle] || ''}`; break
     case 'nacht': karten = { privat: null, morgen: null }; regie(`Nacht ${e.nacht}. ${e.text}`, 'dunkel'); ton.klang('nacht'); vielleichtErschrecken(); break
     case 'platz': if (e.wer === ich) regie(`Du stellst dich ${BEI[e.ort] || e.ort} hin.`, 'geheim'); break
-    case 'schatten-waehlt': regie(`Du schleichst zu ${e.ziel} und zurück.`, 'geheim'); break
+    case 'schatten-waehlt': regie(`Du schleichst zu ${e.ziel} und zurück.${e.verwischt ? ' Du verwischst die Tinte mit dem Ärmel.' : ''}`, 'geheim'); break
+    case 'wahrheit': {
+      const k = karte('morgen', 'Die Wahrheit')
+      kartenZeile(k, Object.entries(e.rollen).map(([n, r]) => `${n === ich ? 'Du' : n}: ${ROLLE[r]}`).join(' · '), 'schwer')
+      for (const n of e.naechte) kartenZeile(k, `Nacht ${n.nacht}: ${Object.entries(n.plaetze).map(([k2, o]) => `${k2 === ich ? 'du' : k2} ${BEI[o] || o}`).join(', ')}. ${n.schatten} holt ${n.opfer}${n.verwischt ? ' und verwischt die Spur' : ''}.`)
+      break
+    }
     case 'pruefung': regie(`Du prüfst ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`, 'geheim'); break
     case 'beobachtung':
       if (e.wer !== ich && !status?.zuschauen) break
@@ -295,7 +306,9 @@ function zeigeWarte(w) {
       if (w.aufgabe === 'verstecken') return sende({ platz: o })
       wahl.innerHTML = ''
       hinweis.textContent = `Du stehst ${BEI[o] || o}. ${w.aufgabe === 'holen' ? 'Wen holst du? Dein Weg dorthin hinterlässt Spuren.' : 'Wen prüfst du?'}`
-      for (const n of w.optionen) knopf(wahl, n, () => sende({ platz: o, ziel: n }))
+      let verwischen = false
+      if (w.verwischen) { const b = knopf(wahl, 'Spur verwischen: aus', () => { verwischen = !verwischen; b.textContent = `Spur verwischen: ${verwischen ? 'an' : 'aus'}`; b.classList.toggle('leise', !verwischen) }, 'leise'); b.title = 'Einmal pro Partie. Keine Richtung, kein Kreidestaub, aber Nachbarn merken, dass du lange weg warst.' }
+      for (const n of w.optionen) knopf(wahl, n, () => sende({ platz: o, ziel: n, verwischen }))
     })
   } else if (w.art === 'zeigen') {
     hinweis.textContent = `Willst du dein Ergebnis allen vorzeigen? „${w.ergebnis}“ Vorgezeigt gilt es als bewiesen.`
@@ -322,7 +335,7 @@ async function sende(aktion) {
   try {
     const r = await fetch('/aktion', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(aktion) })
     const d = await r.json()
-    if (!d.ok) $('hinweis').textContent = d.fehler
+    $('fehler').textContent = d.ok ? '' : d.fehler
   } finally { for (const b of document.querySelectorAll('#eingabe button')) b.disabled = false }
 }
 $('sagen').onsubmit = (ev) => { ev.preventDefault(); const text = $('text').value.trim(); if (!text) return; $('text').value = ''; sende({ art: 'sagt', text, an: $('an').value || null }) }

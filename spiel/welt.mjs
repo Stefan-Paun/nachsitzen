@@ -28,7 +28,7 @@ export function durchquert(von, nach) {
 
 // Was jede Figur in dieser Nacht mitbekommt. plaetze: { name: ort }, schatten/opfer: Namen.
 // Liefert { name: [beobachtung, ...] } fuer alle Lebenden ausser dem Opfer. Jede Zeile ist wahr.
-export function beobachtungen({ plaetze, lebende, schatten, opfer, zufall }) {
+export function beobachtungen({ plaetze, lebende, schatten, opfer, zufall, verwischt = false }) {
   const erg = {}
   const pS = idx(plaetze[schatten])
   for (const a of lebende) {
@@ -43,7 +43,8 @@ export function beobachtungen({ plaetze, lebende, schatten, opfer, zufall }) {
     if (nahe.length && zufall.zahl() < 0.75) zeilen.push(gesehen(zufall.aus(nahe)))
     else if (nachbarn.length && zufall.zahl() < 0.55) zeilen.push(gesehen(zufall.aus(nachbarn)))
     if (a !== schatten) {
-      if (Math.abs(pA - pS) <= 1 && zufall.zahl() < 0.5) {
+      // Verwischen dauert: Nachbarn des Schattens merken es dann fast sicher
+      if (Math.abs(pA - pS) <= 1 && zufall.zahl() < (verwischt ? 0.9 : 0.5)) {
         zeilen.push(pA === pS
           ? { typ: 'bewegung', ort: plaetze[schatten], text: 'Jemand direkt neben dir ist eine Weile weg gewesen und leise zurückgekommen.' }
           : { typ: 'bewegung', ort: plaetze[schatten], text: `Es hat sich jemand ${bei(plaetze[schatten])} bewegt, ganz in deiner Nähe.` })
@@ -63,22 +64,39 @@ export function beobachtungen({ plaetze, lebende, schatten, opfer, zufall }) {
 }
 
 // Oeffentliche Fundstuecke am Morgen, aus dem echten Weg des Schattens.
-export function funde({ plaetze, schatten, opfer, zufall }) {
+const SPUR_SAETZE = [
+  (opfer, ort, r, seite) => `Eine Tintenspur führt vom Platz von ${opfer} (${bei(ort)}) ${RICHTUNG[r]}, erst dick, dann nur noch Tropfen. Der Schatten kam also von dort: ${seite}.`,
+  (opfer, ort, r, seite) => `Vom Platz von ${opfer} (${bei(ort)}) ziehen sich Tintentropfen ${RICHTUNG[r]} über den Boden, immer blasser. Von dort ist der Schatten gekommen: ${seite}.`,
+  (opfer, ort, r, seite) => `Jemand hat Tinte verschleppt: Die Tropfen beginnen bei ${opfer} (${bei(ort)}) und laufen ${RICHTUNG[r]} aus. Also kam der Schatten von ${seite}.`,
+]
+const NOTIZ_SAETZE = [
+  (opfer, seite) => `Unter dem Tintenfleck ein halb zerrissener Zettel in der Handschrift von ${opfer}: „…kommt ${seite}, ich glaub es ist…“`,
+  (opfer, seite) => `Auf dem Pult von ${opfer} ist mit dem Finger in die Tinte geschrieben, kaum lesbar: „${seite} … nicht umdrehen …“`,
+  (opfer, seite) => `Im Heft von ${opfer} bricht die letzte Zeile mitten im Wort ab: „Schritte ${seite}, ich tu so als ob ich schl“`,
+]
+
+// Oeffentliche Fundstuecke am Morgen, aus dem echten Weg des Schattens. Hat er die Spur verwischt,
+// bleibt nur ein verschmierter Fleck ohne Richtung, und kein Kreidestaub.
+export function funde({ plaetze, schatten, opfer, zufall, verwischt = false }) {
   const pS = idx(plaetze[schatten]), pO = idx(plaetze[opfer])
   const ortO = plaetze[opfer]
   const liste = []
+  if (verwischt) {
+    liste.push({ typ: 'spur', ort: ortO, richtung: null, verwischt: true, text: `Am Platz von ${opfer} (${bei(ortO)}) ist die Tinte großflächig verschmiert, als hätte jemand mit dem Ärmel darübergewischt. Keine Richtung zu erkennen. Wer das getan hat, war länger unterwegs als nötig.` })
+    return liste
+  }
   if (pS === pO) liste.push({ typ: 'spur', ort: ortO, richtung: 'hier', text: `Die Tintenspur macht nur einen kleinen Bogen: Sie beginnt am Platz von ${opfer} (${bei(ortO)}) und endet gleich daneben. Der Schatten stand also am selben Platz wie ${opfer}.` })
   else {
     const r = pS < pO ? 'tuer' : 'fenster'
     const seite = ORT_NAMEN.filter((o, i) => (r === 'tuer' ? i < pO : i > pO)).map(bei).join(' oder ')
-    liste.push({ typ: 'spur', ort: ortO, richtung: r, text: `Eine Tintenspur führt vom Platz von ${opfer} (${bei(ortO)}) ${RICHTUNG[r]}, erst dick, dann nur noch Tropfen. Der Schatten kam also von dort: ${seite}.` })
+    liste.push({ typ: 'spur', ort: ortO, richtung: r, text: zufall.aus(SPUR_SAETZE)(opfer, ortO, r, seite) })
   }
   const weg = durchquert(plaetze[schatten], plaetze[opfer])
   if (weg.length) { const o = zufall.aus(weg); liste.push({ typ: 'staub', ort: o, text: `${ORTE[idx(o)].staub}. Hier ist der Schatten nur durchgegangen, sein Platz liegt weiter weg.` }) }
   // Letzte Notiz: ein halber Satz, den das Opfer noch hingekritzelt hat (wahr, aber unscharf)
   if (zufall.zahl() < 0.4) {
     const seite = pS === pO ? 'direkt neben mir' : pS < pO ? 'von der Tür her' : 'vom Fenster her'
-    liste.push({ typ: 'notiz', richtung: pS === pO ? 'hier' : pS < pO ? 'tuer' : 'fenster', text: `Unter dem Tintenfleck ein halb zerrissener Zettel in der Handschrift von ${opfer}: „…kommt ${seite}, ich glaub es ist…“` })
+    liste.push({ typ: 'notiz', richtung: pS === pO ? 'hier' : pS < pO ? 'tuer' : 'fenster', text: zufall.aus(NOTIZ_SAETZE)(opfer, seite) })
   }
   return liste
 }
@@ -89,7 +107,8 @@ export function tagesereignis({ plaetze, schatten, zufall }) {
   const w = zufall.zahl()
   if (w < 0.35) {
     const falsch = zufall.aus(ORT_NAMEN.filter((o) => o !== plaetze[schatten]))
-    return { art: 'zettel', ort: falsch, text: `Der Schatten stand heute Nacht nicht ${bei(falsch)}.` }
+    const text = zufall.aus([`Der Schatten stand heute Nacht nicht ${bei(falsch)}.`, `Sucht nicht ${bei(falsch)}. Dort war er nicht.`, `Wer ${bei(falsch)} stand, ist es nicht. Mehr sag ich nicht.`])
+    return { art: 'zettel', ort: falsch, text }
   }
   if (w < 0.55) return { art: 'hausmeister', text: 'Der Hausmeister rüttelt draußen an der Klinke und flucht. Heute bleibt nur eine Gesprächsrunde.' }
   if (w < 0.75) return { art: 'glocke', text: 'Die Schulglocke läutet, obwohl niemand sie berührt hat. Heute wird offen abgestimmt: Jeder sieht sofort, wer wie stimmt.' }
@@ -104,7 +123,7 @@ export function untersuchung({ ort, plaetze, schatten, opfer, wer, zufall }) {
     return { ort: KLASSENBUCH, name: n, platz: plaetze[n], text: `Im Klassenbuch steht in fremder Handschrift, die Tinte noch feucht: „${n} – ${plaetze[n]}.“` }
   }
   const dort = Object.keys(plaetze).filter((n) => plaetze[n] === ort)
-  const durchgang = durchquert(plaetze[schatten], plaetze[opfer]).includes(ort)
+  const durchgang = durchquert(plaetze[schatten], plaetze[opfer]).includes(ort)   // auch nach Verwischen: Tintenpunkte bleiben
   const teile = [`${ORTE[idx(ort)].detail.charAt(0).toUpperCase()}${ORTE[idx(ort)].detail.slice(1)}.`]
   teile.push(dort.length ? `Hier ${dort.length === 1 ? 'stand' : 'standen'} letzte Nacht ${dort.join(' und ')}.` : 'Hier stand letzte Nacht niemand.')
   if (durchgang) teile.push('Dazu Tintenpunkte am Boden, als wäre jemand nur durchgegangen.')

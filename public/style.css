@@ -12,7 +12,7 @@
   --gedaempft: #9aa0b8;
   --fehler: #e06c75;
   --mint: #7bd88f;
-  --mira: #e07a9a; --jonas: #6fcf97; --lea: #8e95e0; --tarik: #f0a35a; --nora: #5ec1d4; --ich: #bd93f9; --sam: #c0c0c0;
+  --mira: #e07a9a; --jonas: #6fcf97; --lea: #8e95e0; --tarik: #f0a35a; --nora: #5ec1d4; --ich: #bd93f9; --sam: #c0c0c0; --ben: #a89f91;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -130,6 +130,8 @@ body.daemmerung .lampe { transition: none; }
 /* Eingabe */
 .eingabe { border-top: 1px solid var(--linie); background: var(--tafel); padding: 10px 16px 14px; }
 .hinweis { color: var(--gedaempft); font-size: 14px; min-height: 20px; margin-bottom: 6px; }
+.fehler { color: var(--fehler); font-size: 14px; margin: -2px 0 6px; }
+.fehler:empty { display: none; }
 .sagen { display: flex; gap: 8px; }
 .sagen select, .sagen input { font: inherit; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--linie); background: var(--wand); color: var(--text); }
 .sagen input { flex: 1; }

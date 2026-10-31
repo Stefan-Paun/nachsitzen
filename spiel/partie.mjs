@@ -28,6 +28,9 @@ export function neuePartie(namen, zufall, { spieler = null } = {}) {
     nachtwahl: null,                  // Ziel des Schattens in dieser Nacht
     pruefung: null,                   // { wer, ziel, rolle } des Schluesseltraegers
     letzteNacht: null,                // { plaetze, schatten, opfer } fuer Untersuchungen am Tag
+    naechte: [],                      // alle Naechte, fuer die Wahrheit am Ende
+    verwischt: false,                 // hat der Schatten heute Nacht seine Spur verwischt?
+    verwischtBenutzt: false,          // nur einmal pro Partie
     untersucht: [],                   // wer heute schon untersucht hat
     ergebnisse: {},                   // heutige Untersuchungsergebnisse je Figur (fuer Vorzeigen)
     vorgezeigt: [],                   // wer heute schon einen Beweis vorgezeigt hat
@@ -37,7 +40,7 @@ export function neuePartie(namen, zufall, { spieler = null } = {}) {
     sieger: null,                     // 'schueler' | 'schatten' | null
     zufall,
   }
-  melde(p, 'start', { text: 'Die Tür fällt ins Schloss. Sechs Pulte, eine Lampe.' })
+  melde(p, 'start', { text: 'Die Tür fällt ins Schloss. Sieben Pulte, eine Lampe.' })
   for (const name of namen) melde(p, 'rolle', { name, rolle: rollen[name] }, [name])
   return p
 }
@@ -90,6 +93,7 @@ function nachtBeginnen(p) {
   p.pruefung = null
   p.stimmen = {}
   p.untersucht = []
+  p.verwischt = false
   p.ergebnisse = {}
   p.vorgezeigt = []
   p.offeneAbstimmung = false
@@ -114,13 +118,17 @@ export function holbar(p) {
   return p.lebende.filter((n) => n !== s && !(p.nacht === 1 && n === p.spieler))
 }
 
-export function schattenWaehlt(p, ziel) {
+export function darfVerwischen(p) { return !p.verwischtBenutzt }
+
+export function schattenWaehlt(p, ziel, verwischen = false) {
   pruefePhase(p, 'nacht')
   const s = schatten(p)
   if (!lebt(p, s)) throw new Error('Der Schatten ist nicht mehr im Spiel')
   if (!holbar(p).includes(ziel)) throw new Error(`Ungültiges Ziel: ${ziel}`)
+  if (verwischen && !darfVerwischen(p)) throw new Error('Die Spur lässt sich nur einmal pro Partie verwischen')
   p.nachtwahl = ziel
-  melde(p, 'schatten-waehlt', { ziel }, [s])
+  if (verwischen) { p.verwischt = true; p.verwischtBenutzt = true }
+  melde(p, 'schatten-waehlt', { ziel, verwischt: !!verwischen }, [s])
 }
 
 export function schluesselPrueft(p, ziel) {
@@ -141,11 +149,12 @@ export function morgen(p) {
   const ohnePlatz = p.lebende.filter((n) => !p.plaetze[n])
   if (ohnePlatz.length) throw new Error(`Ohne Platz: ${ohnePlatz.join(', ')}`)
   const s = schatten(p), opfer = p.nachtwahl
-  const nacht = { plaetze: { ...p.plaetze }, schatten: s, opfer }
+  const nacht = { nacht: p.nacht, plaetze: { ...p.plaetze }, schatten: s, opfer, verwischt: p.verwischt }
   p.letzteNacht = nacht
+  p.naechte.push(nacht)
 
   // Was jeder mitbekommen hat (privat, wahr) - noch bevor das Opfer verschwindet
-  const beob = beobachtungen({ ...nacht, lebende: p.lebende, zufall: p.zufall })
+  const beob = beobachtungen({ ...nacht, lebende: p.lebende, zufall: p.zufall })   // nacht.verwischt steckt mit drin
   for (const [name, zeilen] of Object.entries(beob)) for (const b of zeilen) melde(p, 'beobachtung', { wer: name, ...b }, [name])
 
   p.lebende = p.lebende.filter((n) => n !== opfer)
@@ -242,6 +251,8 @@ function siegPruefen(p) {
   if (!p.sieger) return false
   p.phase = 'ende'
   melde(p, 'ende', { sieger: p.sieger, schatten: s })
+  // Die Wahrheit: alle Rollen und wer in welcher Nacht wo stand
+  melde(p, 'wahrheit', { rollen: { ...p.rollen }, naechte: p.naechte.map((n) => ({ nacht: n.nacht, plaetze: { ...n.plaetze }, schatten: n.schatten, opfer: n.opfer, verwischt: !!n.verwischt })) })
   return true
 }
 
