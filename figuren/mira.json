@@ -7,5 +7,11 @@
     "Okay, der Reihe nach: Wer war nach dem Läuten noch beim Fenster?",
     "Jonas, das ist nicht lustig. Antworte einfach.",
     "Ich schlage vor, wir stimmen über Tarik ab, solange niemand etwas Besseres hat."
-  ]
+  ],
+  "aussehen": {
+    "haut": "#f1c9a5",
+    "haar": "#3b2a1a",
+    "frisur": "zopf",
+    "shirt": "#b44a6a"
+  }
 }

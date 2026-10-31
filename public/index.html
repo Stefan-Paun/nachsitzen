@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Nachsitzen</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="kopf">
+  <div class="titel"><span class="lampe" id="lampe"></span> Nachsitzen</div>
+  <div class="phase" id="phase">Die Tür ist noch offen.</div>
+  <button class="knopf leise" id="neu" hidden>Neue Partie</button>
+</header>
+
+<main class="buehne">
+  <section class="start" id="start">
+    <h1>Nachts in der Schule.<br>Sechs Pulte, eine Lampe.</h1>
+    <p>Fünf Mitschüler, die wirklich reden, lügen und abstimmen. Einer von euch ist <b>der Schatten</b>. Vielleicht du.</p>
+    <form id="startform">
+      <label>Dein Name <input id="name" value="Stefan" maxlength="20" autocomplete="off"></label>
+      <div class="reihe">
+        <button class="knopf" type="submit">Mitspielen</button>
+        <button class="knopf leise" type="button" id="zuschauen">Nur zuschauen</button>
+      </div>
+    </form>
+    <p class="klein">Jede Partie kostet ein paar Cent an KI-Aufrufen. Läuft nur auf diesem Rechner.</p>
+  </section>
+
+  <section class="raum" id="raum" hidden>
+    <div class="verlauf" id="verlauf" aria-live="polite"></div>
+    <aside class="klasse">
+      <h2>Im Raum</h2>
+      <ul id="klasse"></ul>
+      <div class="meinerolle" id="meinerolle"></div>
+    </aside>
+  </section>
+</main>
+
+<footer class="eingabe" id="eingabe" hidden>
+  <div class="hinweis" id="hinweis"></div>
+  <form class="sagen" id="sagen" hidden>
+    <select id="an" aria-label="An wen"><option value="">an alle</option></select>
+    <input id="text" maxlength="300" placeholder="Was sagst du?" autocomplete="off">
+    <button class="knopf" type="submit">Sagen</button>
+    <button class="knopf leise" type="button" id="schweigen">Schweigen</button>
+  </form>
+  <div class="wahl" id="wahl" hidden></div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

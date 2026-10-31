@@ -7,5 +7,11 @@
     "Tarik hat vorhin gesagt, er war am Gang. Vor zehn Minuten hat er gesagt, er hat geschlafen.",
     "Ich habe nichts gesehen. Ich sage es, wenn ich etwas sehe.",
     "Nora hat recht."
-  ]
+  ],
+  "aussehen": {
+    "haut": "#f6dcc3",
+    "haar": "#1c1c22",
+    "frisur": "lang",
+    "shirt": "#4a4e8a"
+  }
 }

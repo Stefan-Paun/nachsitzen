@@ -7,5 +7,11 @@
     "Okay aber wenn Lea der Schatten ist, hat sie's gut versteckt, die redet ja nie.",
     "Mira, du klingst wie der Direktor. Nur gruseliger.",
     "Ich war beim Automaten. Der ist leer. Das ist das eigentliche Verbrechen hier."
-  ]
+  ],
+  "aussehen": {
+    "haut": "#e8b58c",
+    "haar": "#c98a3a",
+    "frisur": "wuschel",
+    "shirt": "#3a8f5c"
+  }
 }

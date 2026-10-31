@@ -7,5 +7,11 @@
     "Hey, Jonas war die ganze Zeit neben mir. Lasst ihn in Ruhe.",
     "Ernsthaft, Mira? Du warst diejenige, die als Letzte beim Licht war.",
     "Ich hab keine Ahnung, okay? Ich will nur raus hier."
-  ]
+  ],
+  "aussehen": {
+    "haut": "#c98b5e",
+    "haar": "#161616",
+    "frisur": "kurz",
+    "shirt": "#c7772c"
+  }
 }

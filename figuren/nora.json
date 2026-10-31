@@ -7,5 +7,11 @@
     "Das passt nicht. Wenn du geschlafen hast, woher weißt du, dass die Tür offen war?",
     "Zwei Leute sagen, sie waren beim Fenster. Einer von beiden irrt sich mindestens.",
     "Ich stimme heute nicht ab. Ich habe nicht genug."
-  ]
+  ],
+  "aussehen": {
+    "haut": "#efc6a8",
+    "haar": "#7a3b1e",
+    "frisur": "bob",
+    "shirt": "#2f7f8f"
+  }
 }

@@ -1,0 +1,113 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import http from 'node:http'
+import { erstelleServer } from '../server.mjs'
+import { skriptGehirn } from '../tools/skriptgehirne.mjs'
+import { browserGehirn } from '../spiel/browsergehirn.mjs'
+import { zufall } from '../spiel/zufall.mjs'
+import { SCHATTEN, SCHLUESSEL } from '../spiel/rollen.mjs'
+
+const fabrik = (name, rolle, { zufall: z }) => skriptGehirn(name, rolle, z)
+
+// Liest SSE-Ereignisse, bis `bis(ereignisse)` wahr ist oder die Zeit um ist.
+async function sse(port, bis, { auf = async () => {}, zeit = 8000 } = {}) {
+  const ac = new AbortController()
+  const r = await fetch(`http://127.0.0.1:${port}/ereignisse`, { signal: ac.signal })
+  const leser = r.body.getReader(); const dec = new TextDecoder()
+  const ereignisse = []; let rest = ''
+  const ende = Date.now() + zeit
+  try {
+    while (Date.now() < ende) {
+      const { value, done } = await leser.read(); if (done) break
+      rest += dec.decode(value, { stream: true })
+      let i
+      while ((i = rest.indexOf('\n\n')) >= 0) {
+        const block = rest.slice(0, i); rest = rest.slice(i + 2)
+        const art = /^event: (.+)$/m.exec(block)?.[1], data = /^data: (.*)$/m.exec(block)?.[1]
+        const e = { art, daten: JSON.parse(data) }
+        ereignisse.push(e); await auf(e)
+      }
+      if (bis(ereignisse)) break
+    }
+  } finally { ac.abort() }
+  return ereignisse
+}
+const post = (port, pfad, body) => fetch(`http://127.0.0.1:${port}${pfad}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(async (r) => ({ status: r.status, body: await r.json() }))
+
+test('Server: statische Seite, nur lokaler Host, kein Pfad-Ausbruch', async () => {
+  const s = erstelleServer({ gehirnFabrik: fabrik, port: 0, pause: 0 })
+  const port = await s.starten()
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/`); assert.equal(r.status, 200); assert.match(await r.text(), /Nachsitzen/)
+    assert.equal((await fetch(`http://127.0.0.1:${port}/app.js`)).status, 200)
+    assert.equal((await fetch(`http://127.0.0.1:${port}/../package.json`)).status, 404)
+    const fremd = await new Promise((f) => http.get({ host: '127.0.0.1', port, path: '/', headers: { host: 'boese.example' } }, (r) => f(r.statusCode)))
+    assert.equal(fremd, 403)   // fetch() erlaubt keinen eigenen Host-Header, darum roh
+    assert.equal(await (await fetch(`http://127.0.0.1:${port}/status`)).text(), 'null')
+  } finally { await s.schliessen() }
+})
+
+test('Server: Zuschauer-Partie laeuft mit Skript-Gehirnen bis zum Ende, Rollen sichtbar', async () => {
+  const s = erstelleServer({ gehirnFabrik: fabrik, port: 0, pause: 0, startwert: 5 })
+  const port = await s.starten()
+  try {
+    const { status, body } = await post(port, '/partie', { zuschauen: true })
+    assert.equal(status, 200); assert.equal(body.zuschauen, true); assert.ok(body.rollen)
+    const ev = await sse(port, (l) => l.some((e) => e.art === 'status' && e.daten?.phase === 'ende'))
+    const arten = ev.filter((e) => e.art === 'ereignis').map((e) => e.daten.art)
+    assert.ok(arten.includes('schatten-waehlt') && arten.includes('pruefung'), 'Zuschauer sehen auch die Nacht')
+    assert.ok(ev.some((e) => e.art === 'tippt'))
+    assert.ok(!ev.some((e) => e.art === 'ereignis' && 'sichtbar' in e.daten), 'Sichtbarkeitsliste geht nicht an den Browser')
+    assert.ok(['schueler', 'schatten'].includes(s.partie().sieger))
+  } finally { await s.schliessen() }
+})
+
+test('Server: Spieler-Partie, Eingaben per POST, private Ereignisse bleiben privat', async () => {
+  const s = erstelleServer({ gehirnFabrik: fabrik, port: 0, pause: 0, startwert: 7 })
+  const port = await s.starten()
+  try {
+    const { body } = await post(port, '/partie', { name: 'Stefan' })
+    assert.equal(body.spieler, 'Stefan'); assert.equal(body.rollen, null)
+    const rolle = body.rolle
+    const ev = await sse(port, (l) => l.some((e) => e.art === 'status' && e.daten?.phase === 'ende'), {
+      auf: async (e) => {
+        if (e.art !== 'warte' || !e.daten) return
+        const w = e.daten
+        if (w.art === 'sagen') await post(port, '/aktion', { art: 'sagt', text: 'Ich war am Fenster.', an: w.andere[0] })
+        else if (w.art === 'stimme') await post(port, '/aktion', { fuer: w.optionen[0] })
+        else await post(port, '/aktion', { ziel: w.optionen[0] })
+      }, zeit: 15000,
+    })
+    const p = s.partie()
+    assert.equal(p.phase, 'ende')
+    const gesehen = ev.filter((e) => e.art === 'ereignis').map((e) => e.daten)
+    assert.ok(gesehen.filter((e) => e.art === 'rolle').every((e) => e.name === 'Stefan'), 'nur die eigene Rolle')
+    if (rolle !== SCHATTEN) assert.ok(!gesehen.some((e) => e.art === 'schatten-waehlt'))
+    if (rolle !== SCHLUESSEL) assert.ok(!gesehen.some((e) => e.art === 'pruefung'))
+    assert.ok(gesehen.some((e) => e.art === 'sagt' && e.von === 'Stefan' && e.text === 'Ich war am Fenster.'))
+    const falsch = await post(port, '/aktion', { art: 'sagt', text: 'zu spaet' })
+    assert.equal(falsch.status, 400)
+  } finally { await s.schliessen() }
+})
+
+test('Browser-Gehirn weist ungueltige Eingaben ab und loest gueltige ein', async () => {
+  const gesendet = []
+  const g = browserGehirn('Stefan', SCHATTEN, { sende: (a, d) => gesendet.push([a, d]) })
+  assert.equal(g.aktion({ art: 'sagt', text: 'x' }), 'Gerade ist keine Eingabe gefragt')
+  const v = g.abend([], ['Stefan', 'Mira', 'Lea'])
+  assert.deepEqual(g.wartetAuf(), { art: 'sagen', pflicht: true, andere: ['Mira', 'Lea'] })
+  assert.equal(g.aktion({ art: 'schweigt' }), 'Sag zumindest einen Satz')
+  assert.equal(g.aktion({ art: 'sagt', text: '  Hallo  ', an: 'Niemand' }), null)
+  assert.deepEqual(await v, { art: 'sagt', text: 'Hallo', an: null })
+  const n = g.nacht([], ['Stefan', 'Mira', 'Lea'])
+  assert.equal(g.aktion({ ziel: 'Stefan' }), 'Ungueltiges Ziel')
+  assert.equal(g.aktion({ ziel: 'Lea' }), null)
+  assert.deepEqual(await n, { art: 'holen', ziel: 'Lea' })
+  const st = g.abstimmung([], ['Stefan', 'Mira'])
+  assert.equal(g.aktion({ fuer: null }), null)
+  assert.deepEqual(await st, { art: 'stimme', fuer: null, begruendung: '' })
+  const d = g.diskussion([], ['Stefan', 'Mira'])
+  g.abbrechen()
+  await assert.rejects(d, /abgebrochen/)
+  assert.ok(gesendet.some(([a, d]) => a === 'warte' && d === null))
+})

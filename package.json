@@ -4,8 +4,11 @@
   "description": "Nachts in der Schule eingesperrt, mit fuenf KI-Figuren. Eine davon ist der Schatten.",
   "type": "module",
   "private": true,
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
+    "start": "node server.mjs",
     "test": "node --test test/*.test.mjs",
     "simuliere": "node tools/simuliere.mjs",
     "spiele": "node tools/spiele.mjs"
