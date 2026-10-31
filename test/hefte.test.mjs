@@ -39,6 +39,8 @@ test('eintragBauen: Werte begrenzt, fremde Namen weg, leerer Text bekommt Ersatz
   const e = eintragBauen({ eintrag: '  Jonas lügt.  ', vertrauen: [{ name: 'Jonas', wert: -7 }, { name: 'Fremd', wert: 2 }, { name: 'Lea', wert: 1.4 }] }, ['Jonas', 'Lea'])
   assert.deepEqual(e, { eintrag: 'Jonas lügt.', vertrauen: { Jonas: -2, Lea: 1 } })
   assert.match(eintragBauen({}, []).eintrag, /Nacht/)
+  const lang = eintragBauen({ eintrag: ('Das war eine lange Nacht. '.repeat(60)), vertrauen: [] }, [])
+  assert.ok(lang.eintrag.length <= 900 && lang.eintrag.endsWith('Nacht.'), 'am Satzende gekuerzt')
 })
 
 test('behauptungAus erkennt eigene Platzangaben, aber keine Beobachtungen ueber andere', () => {

@@ -43,7 +43,13 @@ export function hefteSpeicher({ ordner = standardOrdner() } = {}) {
 
 // Eintrag aus der Werkzeug-Antwort bauen und absichern (Werte -2..2, nur bekannte Namen).
 export function eintragBauen({ eintrag, vertrauen }, namen) {
-  const text = String(eintrag || '').trim().slice(0, 600) || 'Eine Nacht, über die ich nicht reden will.'
+  let text = String(eintrag || '').trim()
+  if (text.length > 900) {                                   // am Satzende kuerzen, nicht mitten im Wort
+    const kurz = text.slice(0, 900)
+    const ende = Math.max(kurz.lastIndexOf('. '), kurz.lastIndexOf('! '), kurz.lastIndexOf('? '))
+    text = ende > 200 ? kurz.slice(0, ende + 1) : kurz
+  }
+  if (!text) text = 'Eine Nacht, über die ich nicht reden will.'
   const v = {}
   for (const x of Array.isArray(vertrauen) ? vertrauen : []) {
     if (namen.includes(x?.name)) v[x.name] = Math.max(-2, Math.min(2, Math.round(Number(x.wert) || 0)))
