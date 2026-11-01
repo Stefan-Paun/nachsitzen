@@ -31,7 +31,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
 
   const sende = (art, daten) => {
     const zeile = `event: ${art}\ndata: ${JSON.stringify(daten)}\n\n`
-    for (const res of verbindungen) res.write(zeile)
+    for (const res of verbindungen) { if (res.writableEnded) verbindungen.delete(res); else res.write(zeile) }
   }
   const status = () => spiel && {
     phase: spiel.p.phase, nacht: spiel.p.nacht, runde: spiel.p.runde, lebende: spiel.p.lebende, keller: spiel.p.keller,
@@ -48,7 +48,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
   const fuerBrowser = (e) => { const { sichtbar: _, ...rest } = e; return rest }
 
   function neuePartie({ name, zuschauen }) {
-    if (spiel && spiel.p.phase !== 'ende') spiel.mensch?.abbrechen()
+    if (spiel) { spiel.beendet = true; if (spiel.p.phase !== 'ende') spiel.mensch?.abbrechen() }   // alte Partie stoppt (Schleife, Tippen, Hefte)
     const spieler = zuschauen ? null : (String(name || '').trim().slice(0, 20) || 'Du')
     const namen = [...KI_FIGUREN, zuschauen ? ZUSCHAUER_ERSATZ : spieler]
     if (new Set(namen.map((n) => n.toLowerCase())).size !== namen.length) throw new Error('Der Name ist schon vergeben')
@@ -56,20 +56,23 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
     const p = P.neuePartie(namen, z, { spieler })
     const figuren = Object.fromEntries(namen.map((n) => [n, n === spieler ? { haut: '#f1cfb0', haar: '#2b2118', frisur: 'wuschel', shirt: '#bd93f9' } : ladeFigur(n).aussehen]))
     const gehirne = {}
-    let mensch = null
+    const meins = { p, spieler, zuschauen, mensch: null, figuren, gehirne, hefteGeschrieben: false, beendet: false }
     for (const n of namen) {
-      if (n === spieler) { mensch = browserGehirn(n, p.rollen[n], { sende }); gehirne[n] = mensch }
+      if (n === spieler) { meins.mensch = browserGehirn(n, p.rollen[n], { sende }); gehirne[n] = meins.mensch }
       else {
         const g = gehirnFabrik(n, p.rollen[n], { mitspieler: namen, spieler, zufall: z, heft: hefte ? hefte.alsText(n) : '' })
-        gehirne[n] = mitTippen(g, n)
+        gehirne[n] = mitTippen(g, n, meins)
       }
     }
-    spiel = { p, spieler, zuschauen, mensch, figuren, gehirne, hefteGeschrieben: false }
-    const beobachter = (e) => { if (sichtbar(e)) sende('ereignis', fuerBrowser(e)); sende('status', status()) }
-    const meins = spiel
-    spieleBisZumEnde(p, gehirne, { zufall: z, beobachter, pause: () => new Promise((f) => setTimeout(f, pause)) })
+    spiel = meins
+    const beobachter = (e) => { if (meins.beendet) return; if (sichtbar(e)) sende('ereignis', fuerBrowser(e)); sende('status', status()) }
+    spieleBisZumEnde(p, gehirne, { zufall: z, beobachter, abbruch: () => meins.beendet, pause: () => new Promise((f) => setTimeout(f, pause)) })
       .then(() => hefteSchreiben(meins))
-      .catch((f) => { log(`Partie beendet: ${f.message}`); if (p.phase !== 'ende') { p.phase = 'ende'; p.sieger = p.sieger || null } sende('status', status()) })
+      .catch((f) => {
+        log(`Partie beendet: ${f.message}`)
+        if (meins.beendet) return   // abgeloest durch eine neue Partie: nichts mehr senden
+        if (p.phase !== 'ende') { p.phase = 'ende'; p.sieger = p.sieger || null } sende('status', status())
+      })
     return status()
   }
 
@@ -80,6 +83,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
     const eintraege = {}
     for (const [n, g] of Object.entries(sp.gehirne)) {
       if (!g.heftSchreiben) continue
+      if (sp !== spiel) return   // neue Partie gestartet: keine weiteren Heft-Aufrufe
       sende('tippt', { von: n })
       try {
         const e = await g.heftSchreiben(P.verlaufFuer(sp.p, n), z)
@@ -93,8 +97,9 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
   }
 
   // KI-Gehirne melden vorher "tippt", damit der Browser Leben zeigt
-  function mitTippen(g, n) {
-    const h = (fn) => async (...a) => { sende('tippt', { von: n }); try { return await fn(...a) } finally { sende('tippt', { von: n, fertig: true }) } }
+  function mitTippen(g, n, sp) {
+    const melde = (daten) => { if (!sp.beendet) sende('tippt', daten) }
+    const h = (fn) => async (...a) => { melde({ von: n }); try { return await fn(...a) } finally { melde({ von: n, fertig: true }) } }
     return { ...g, abend: h(g.abend), nacht: g.nacht, diskussion: h(g.diskussion), abstimmung: h(g.abstimmung) }
   }
 
