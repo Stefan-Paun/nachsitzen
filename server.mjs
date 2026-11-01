@@ -48,7 +48,6 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
   const fuerBrowser = (e) => { const { sichtbar: _, ...rest } = e; return rest }
 
   function neuePartie({ name, zuschauen }) {
-    if (spiel) { spiel.beendet = true; if (spiel.p.phase !== 'ende') spiel.mensch?.abbrechen() }   // alte Partie stoppt (Schleife, Tippen, Hefte)
     const spieler = zuschauen ? null : (String(name || '').trim().slice(0, 20) || 'Du')
     const namen = [...KI_FIGUREN, zuschauen ? ZUSCHAUER_ERSATZ : spieler]
     if (new Set(namen.map((n) => n.toLowerCase())).size !== namen.length) throw new Error('Der Name ist schon vergeben')
@@ -64,6 +63,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
         gehirne[n] = mitTippen(g, n, meins)
       }
     }
+    if (spiel) { spiel.beendet = true; if (spiel.p.phase !== 'ende') spiel.mensch?.abbrechen() }   // alte Partie stoppt (Schleife, Tippen, Hefte)
     spiel = meins
     const beobachter = (e) => { if (meins.beendet) return; if (sichtbar(e)) sende('ereignis', fuerBrowser(e)); sende('status', status()) }
     spieleBisZumEnde(p, gehirne, { zufall: z, beobachter, abbruch: () => meins.beendet, pause: () => new Promise((f) => setTimeout(f, pause)) })
@@ -87,9 +87,11 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
       sende('tippt', { von: n })
       try {
         const e = await g.heftSchreiben(P.verlaufFuer(sp.p, n), z)
+        if (sp !== spiel) return   // inzwischen neue Partie: Eintrag verwerfen, nichts senden
         hefte.schreiben(n, { ...e, rolle: sp.p.rollen[n], schatten: z.schatten, sieger: z.sieger, spieler: sp.spieler })
         eintraege[n] = e
       } catch (f) { log(`Heft ${n}: ${f.message}`) }
+      if (sp !== spiel) return
       sende('tippt', { von: n, fertig: true })
     }
     sp.hefteGeschrieben = true
@@ -121,7 +123,8 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
       }
       if (req.method === 'POST' && url.pathname === '/partie') {
         const body = await lies(req)
-        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(neuePartie(body)))
+        const neu = neuePartie(body)   // wirft bei Fehlern, bevor Kopfzeilen gesendet sind
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(neu))
         return
       }
       if (req.method === 'POST' && url.pathname === '/aktion') {
@@ -163,7 +166,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
     server,
     melde: (art, daten) => sende(art, daten),
     starten: () => new Promise((f) => server.listen(port, host, () => f(server.address().port))),
-    schliessen: () => new Promise((f) => { for (const r of verbindungen) r.end(); spiel?.mensch?.abbrechen(); server.close(() => f()) }),
+    schliessen: () => new Promise((f) => { for (const r of verbindungen) r.end(); if (spiel) spiel.beendet = true; spiel?.mensch?.abbrechen(); server.close(() => f()) }),
     partie: () => spiel?.p ?? null,
   }
 }

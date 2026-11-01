@@ -197,3 +197,18 @@ test('Server: neue Partie beendet die laufende Zuschauer-Partie (keine Gehirn-Au
     assert.ok(ev.filter((e) => e.art === 'status' && e.daten).every((e) => e.daten.spieler === 'Test' && !e.daten.zuschauen))
   } finally { await s.schliessen() }
 })
+
+test('Server: eine abgelehnte neue Partie (doppelter Name) laesst die laufende Partie weiterlaufen', async () => {
+  const s = erstelleServer({ gehirnFabrik: fabrik, port: 0, pause: 20, startwert: 5 })
+  const port = await s.starten()
+  try {
+    await post(port, '/partie', { zuschauen: true })
+    const alt = s.partie()
+    const r = await post(port, '/partie', { name: 'Mira' })
+    assert.equal(r.status, 400)
+    assert.equal(s.partie(), alt)
+    const ev = await sse(port, (l) => l.some((e) => e.art === 'status' && e.daten?.phase === 'ende'))
+    assert.equal(alt.phase, 'ende', 'alte Partie wurde nicht abgewuergt')
+    assert.ok(ev.length > 0)
+  } finally { await s.schliessen() }
+})
