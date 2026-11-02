@@ -29,10 +29,14 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
   const verbindungen = new Set()
   let spiel = null          // { p, spieler, zuschauen, mensch, gesendet }
 
+  // Eine SSE-Zeile; Spielereignisse tragen ihre Nummer als `id:`, damit der Browser sie bei der
+  // automatischen Wiederverbindung als Last-Event-ID zurueckschickt.
+  const sseZeile = (art, daten, id = null) => `${id === null ? '' : `id: ${id}\n`}event: ${art}\ndata: ${JSON.stringify(daten)}\n\n`
   const sende = (art, daten) => {
-    const zeile = `event: ${art}\ndata: ${JSON.stringify(daten)}\n\n`
+    const zeile = sseZeile(art, daten, art === 'ereignis' ? daten.nr : null)
     for (const res of verbindungen) res.write(zeile)
   }
+  let ping = null   // Kommentarzeile alle 25 s, damit Proxys und Browser die Leitung nicht kappen
   const status = () => spiel && {
     phase: spiel.p.phase, nacht: spiel.p.nacht, runde: spiel.p.runde, lebende: spiel.p.lebende, keller: spiel.p.keller,
     verschwunden: spiel.p.verschwunden, spieler: spiel.spieler, zuschauen: spiel.zuschauen, sieger: spiel.p.sieger,
@@ -108,10 +112,14 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
         verbindungen.add(res)
         req.on('close', () => verbindungen.delete(res))
         if (spiel) {
-          res.write(`event: status\ndata: ${JSON.stringify(status())}\n\n`)   // zuerst, damit der Browser weiss, wer er ist
-          for (const e of spiel.p.ereignisse) if (sichtbar(e)) res.write(`event: ereignis\ndata: ${JSON.stringify(fuerBrowser(e))}\n\n`)
-          res.write(`event: status\ndata: ${JSON.stringify(status())}\n\n`)
-        } else res.write('event: status\ndata: null\n\n')
+          // Last-Event-ID: nur Neueres nachliefern. Eine Nummer, die es in dieser Partie noch nicht
+          // gibt (alte Partie, Neustart), gilt als unbekannt und liefert alles.
+          const kopf = req.headers['last-event-id']
+          const letzte = /^\d+$/.test(kopf ?? '') && Number(kopf) < spiel.p.ereignisse.length ? Number(kopf) : -1
+          res.write(sseZeile('status', status()))   // zuerst, damit der Browser weiss, wer er ist
+          for (const e of spiel.p.ereignisse) if (e.nr > letzte && sichtbar(e)) res.write(sseZeile('ereignis', fuerBrowser(e), e.nr))
+          res.write(sseZeile('status', status()))
+        } else res.write(sseZeile('status', null))
         return
       }
       if (req.method === 'POST' && url.pathname === '/partie') {
@@ -157,8 +165,12 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
   return {
     server,
     melde: (art, daten) => sende(art, daten),
-    starten: () => new Promise((f) => server.listen(port, host, () => f(server.address().port))),
-    schliessen: () => new Promise((f) => { for (const r of verbindungen) r.end(); spiel?.mensch?.abbrechen(); server.close(() => f()) }),
+    starten: () => new Promise((f) => server.listen(port, host, () => {
+      ping = setInterval(() => { for (const res of verbindungen) res.write(': ping\n\n') }, 25_000)
+      ping.unref()
+      f(server.address().port)
+    })),
+    schliessen: () => new Promise((f) => { clearInterval(ping); for (const r of verbindungen) r.end(); spiel?.mensch?.abbrechen(); server.close(() => f()) }),
     partie: () => spiel?.p ?? null,
   }
 }

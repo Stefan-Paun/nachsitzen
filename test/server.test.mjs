@@ -14,10 +14,10 @@ import { SCHATTEN, SCHLUESSEL } from '../spiel/rollen.mjs'
 const fabrik = (name, rolle, { zufall: z }) => skriptGehirn(name, rolle, z)
 
 // Liest SSE-Ereignisse, bis `bis(ereignisse)` wahr ist oder die Zeit um ist.
-async function sse(port, bis, { auf = async () => {}, zeit = 8000 } = {}) {
+async function sse(port, bis, { auf = async () => {}, zeit = 8000, kopf = {} } = {}) {
   const ac = new AbortController()
   const wecker = setTimeout(() => ac.abort(), zeit)
-  const r = await fetch(`http://127.0.0.1:${port}/ereignisse`, { signal: ac.signal })
+  const r = await fetch(`http://127.0.0.1:${port}/ereignisse`, { signal: ac.signal, headers: kopf })
   const leser = r.body.getReader(); const dec = new TextDecoder()
   const ereignisse = []; let rest = ''
   const ende = Date.now() + zeit
@@ -29,7 +29,7 @@ async function sse(port, bis, { auf = async () => {}, zeit = 8000 } = {}) {
       while ((i = rest.indexOf('\n\n')) >= 0) {
         const block = rest.slice(0, i); rest = rest.slice(i + 2)
         const art = /^event: (.+)$/m.exec(block)?.[1], data = /^data: (.*)$/m.exec(block)?.[1]
-        const e = { art, daten: JSON.parse(data) }
+        const e = { art, daten: JSON.parse(data), id: /^id: (.+)$/m.exec(block)?.[1] ?? null }
         ereignisse.push(e); await auf(e)
       }
       if (bis(ereignisse)) break
@@ -166,5 +166,30 @@ test('Server: nach dem Ende schreiben Figuren mit heftSchreiben ins Heft, /hefte
     const r = await fetch(`http://127.0.0.1:${port}/hefte`); assert.equal(r.status, 200)
     const alle = await r.json(); assert.equal(alle.Mira.length, 2)
     assert.ok(ev.some((e) => e.art === 'status' && e.daten?.hefteGeschrieben === true))
+  } finally { await s.schliessen() }
+})
+
+test('Server: SSE traegt id: und liefert mit Last-Event-ID nur Neueres nach', async () => {
+  const s = erstelleServer({ gehirnFabrik: fabrik, port: 0, pause: 0, startwert: 5 })
+  const port = await s.starten()
+  try {
+    await post(port, '/partie', { zuschauen: true })
+    const ende = (l) => l.some((e) => e.art === 'status' && e.daten?.phase === 'ende')
+    await sse(port, ende)
+    // ohne Header kommt alles, jedes Ereignis mit id = nr
+    const alle = (await sse(port, ende)).filter((e) => e.art === 'ereignis')
+    assert.ok(alle.length > 10)
+    assert.ok(alle.every((e) => e.id === String(e.daten.nr)))
+    assert.equal(alle[0].daten.nr, 0)
+    // mit Last-Event-ID: 5 nur ab nr 6
+    const rest = (await sse(port, ende, { kopf: { 'last-event-id': '5' } })).filter((e) => e.art === 'ereignis')
+    assert.equal(rest[0].daten.nr, 6)
+    assert.equal(rest.length, alle.filter((e) => e.daten.nr > 5).length)
+    // eine Nummer aus einer anderen (laengeren) Partie ist unbekannt: alles kommt
+    const fremd = (await sse(port, ende, { kopf: { 'last-event-id': '99999' } })).filter((e) => e.art === 'ereignis')
+    assert.equal(fremd.length, alle.length)
+    // Unsinn im Header wird wie "kein Header" behandelt
+    const unsinn = (await sse(port, ende, { kopf: { 'last-event-id': 'abc' } })).filter((e) => e.art === 'ereignis')
+    assert.equal(unsinn.length, alle.length)
   } finally { await s.schliessen() }
 })
