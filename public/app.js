@@ -100,7 +100,7 @@ function farbe(name) {
 let hoechsteNr = -1   // hoechste gezeigte Ereignisnummer; Wiederholungen nach einer Wiederverbindung ignorieren
 function zeigeEreignis(e) {
   if (typeof e.nr === 'number') {
-    if (e.nr === 0 && hoechsteNr >= 0) frisch()   // Startereignis einer neuen Partie (z. B. in anderem Tab gestartet)
+    if (e.nr === 0 && hoechsteNr >= 0) { frisch(); zeigeTafel() }   // Startereignis einer neuen Partie (z. B. in anderem Tab gestartet)
     else if (e.nr <= hoechsteNr) return
     hoechsteNr = e.nr
   }

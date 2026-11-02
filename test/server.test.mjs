@@ -179,15 +179,20 @@ test('Server: SSE traegt id: und liefert mit Last-Event-ID nur Neueres nach', as
     // ohne Header kommt alles, jedes Ereignis mit id = nr
     const alle = (await sse(port, ende)).filter((e) => e.art === 'ereignis')
     assert.ok(alle.length > 10)
-    assert.ok(alle.every((e) => e.id === String(e.daten.nr)))
+    assert.ok(alle.every((e) => e.id === `1-${e.daten.nr}`))
     assert.equal(alle[0].daten.nr, 0)
     // mit Last-Event-ID: 5 nur ab nr 6
-    const rest = (await sse(port, ende, { kopf: { 'last-event-id': '5' } })).filter((e) => e.art === 'ereignis')
+    const rest = (await sse(port, ende, { kopf: { 'last-event-id': '1-5' } })).filter((e) => e.art === 'ereignis')
     assert.equal(rest[0].daten.nr, 6)
     assert.equal(rest.length, alle.filter((e) => e.daten.nr > 5).length)
-    // eine Nummer aus einer anderen (laengeren) Partie ist unbekannt: alles kommt
-    const fremd = (await sse(port, ende, { kopf: { 'last-event-id': '99999' } })).filter((e) => e.art === 'ereignis')
+    // blanke Zahl gilt fuer die laufende Partie
+    const blank = (await sse(port, ende, { kopf: { 'last-event-id': '5' } })).filter((e) => e.art === 'ereignis')
+    assert.equal(blank[0].daten.nr, 6)
+    // eine Nummer, die es noch nicht gibt, oder eine fremde Partie liefert alles
+    const fremd = (await sse(port, ende, { kopf: { 'last-event-id': '1-99999' } })).filter((e) => e.art === 'ereignis')
     assert.equal(fremd.length, alle.length)
+    const andere = (await sse(port, ende, { kopf: { 'last-event-id': '7-5' } })).filter((e) => e.art === 'ereignis')
+    assert.equal(andere.length, alle.length)
     // Unsinn im Header wird wie "kein Header" behandelt
     const unsinn = (await sse(port, ende, { kopf: { 'last-event-id': 'abc' } })).filter((e) => e.art === 'ereignis')
     assert.equal(unsinn.length, alle.length)

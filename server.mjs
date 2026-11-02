@@ -28,12 +28,13 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1', port = Number(process.env.NACHSITZEN_PORT || 4800), pause = 700, startwert = null, log = console.log } = {}) {
   const verbindungen = new Set()
   let spiel = null          // { p, spieler, zuschauen, mensch, gesendet }
+  let partien = 0           // zaehlt die Partien; Teil der SSE-id, damit alte Nummern nicht zur neuen Partie passen
 
   // Eine SSE-Zeile; Spielereignisse tragen ihre Nummer als `id:`, damit der Browser sie bei der
   // automatischen Wiederverbindung als Last-Event-ID zurueckschickt.
   const sseZeile = (art, daten, id = null) => `${id === null ? '' : `id: ${id}\n`}event: ${art}\ndata: ${JSON.stringify(daten)}\n\n`
   const sende = (art, daten) => {
-    const zeile = sseZeile(art, daten, art === 'ereignis' ? daten.nr : null)
+    const zeile = sseZeile(art, daten, art === 'ereignis' ? `${spiel.kennung}-${daten.nr}` : null)
     for (const res of verbindungen) res.write(zeile)
   }
   let ping = null   // Kommentarzeile alle 25 s, damit Proxys und Browser die Leitung nicht kappen
@@ -68,7 +69,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
         gehirne[n] = mitTippen(g, n)
       }
     }
-    spiel = { p, spieler, zuschauen, mensch, figuren, gehirne, hefteGeschrieben: false }
+    spiel = { p, spieler, zuschauen, mensch, figuren, gehirne, hefteGeschrieben: false, kennung: ++partien }
     const beobachter = (e) => { if (sichtbar(e)) sende('ereignis', fuerBrowser(e)); sende('status', status()) }
     const meins = spiel
     spieleBisZumEnde(p, gehirne, { zufall: z, beobachter, pause: () => new Promise((f) => setTimeout(f, pause)) })
@@ -112,12 +113,14 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
         verbindungen.add(res)
         req.on('close', () => verbindungen.delete(res))
         if (spiel) {
-          // Last-Event-ID: nur Neueres nachliefern. Eine Nummer, die es in dieser Partie noch nicht
-          // gibt (alte Partie, Neustart), gilt als unbekannt und liefert alles.
-          const kopf = req.headers['last-event-id']
-          const letzte = /^\d+$/.test(kopf ?? '') && Number(kopf) < spiel.p.ereignisse.length ? Number(kopf) : -1
+          // Last-Event-ID ("<partie>-<nr>"): nur Neueres nachliefern, aber nur aus derselben Partie.
+          // Fremde Partie, Unsinn oder eine Nummer, die es noch nicht gibt, liefert alles.
+          // Eine blanke Zahl (curl, Skripte) gilt fuer die laufende Partie.
+          const m = /^(?:(\d+)-)?(\d+)$/.exec(req.headers['last-event-id'] ?? '')
+          const gueltig = m && (m[1] === undefined || Number(m[1]) === spiel.kennung) && Number(m[2]) < spiel.p.ereignisse.length
+          const letzte = gueltig ? Number(m[2]) : -1
           res.write(sseZeile('status', status()))   // zuerst, damit der Browser weiss, wer er ist
-          for (const e of spiel.p.ereignisse) if (e.nr > letzte && sichtbar(e)) res.write(sseZeile('ereignis', fuerBrowser(e), e.nr))
+          for (const e of spiel.p.ereignisse) if (e.nr > letzte && sichtbar(e)) res.write(sseZeile('ereignis', fuerBrowser(e), `${spiel.kennung}-${e.nr}`))
           res.write(sseZeile('status', status()))
         } else res.write(sseZeile('status', null))
         return
@@ -166,6 +169,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
     server,
     melde: (art, daten) => sende(art, daten),
     starten: () => new Promise((f) => server.listen(port, host, () => {
+      clearInterval(ping)
       ping = setInterval(() => { for (const res of verbindungen) res.write(': ping\n\n') }, 25_000)
       ping.unref()
       f(server.address().port)
