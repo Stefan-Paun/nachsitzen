@@ -26,7 +26,7 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 
 // Port aus der Umgebung: leer -> 4800, sonst ganze Zahl 0-65535, alles andere wirft eine deutsche Meldung.
 export function pruefePort(wert) {
-  if (wert === undefined || wert === null || wert === '') return 4800
+  if (wert === undefined || wert === null || String(wert).trim() === '') return 4800
   const n = Number(wert)
   if (!Number.isInteger(n) || n < 0 || n > 65535) throw new Error(`Ungültiger Port „${wert}“ – NACHSITZEN_PORT muss eine Zahl von 0 bis 65535 sein`)
   return n
@@ -68,10 +68,10 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
   const fuerBrowser = (e) => { const { sichtbar: _, ...rest } = e; return rest }
 
   function neuePartie({ name, zuschauen }) {
-    if (spiel && spiel.p.phase !== 'ende') spiel.mensch?.abbrechen()
     const spieler = zuschauen ? null : pruefeName(name)
     const namen = [...KI_FIGUREN, zuschauen ? ZUSCHAUER_ERSATZ : spieler]
     if (new Set(namen.map((n) => n.toLowerCase())).size !== namen.length) throw new Error('Der Name ist schon vergeben')
+    if (spiel && spiel.p.phase !== 'ende') spiel.mensch?.abbrechen()   // erst nach der Prüfung: ein abgelehnter Name lässt die laufende Partie weiterlaufen
     const z = zufall(startwert ?? Date.now())
     const p = P.neuePartie(namen, z, { spieler })
     const figuren = Object.fromEntries(namen.map((n) => [n, n === spieler ? { haut: '#f1cfb0', haar: '#2b2118', frisur: 'wuschel', shirt: '#bd93f9' } : ladeFigur(n).aussehen]))

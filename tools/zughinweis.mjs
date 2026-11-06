@@ -19,6 +19,6 @@ export function tafelZeile(w) {
 // Kurze deutsche Meldung, wenn kein Server antwortet.
 export function verbindungsFehler(port, fehler) {
   const grund = fehler?.cause?.code || fehler?.code
-  if (grund === 'ECONNREFUSED' || grund === 'ECONNRESET' || fehler?.name === 'TypeError') return `Kein Server auf Port ${port} – starte ihn mit: npm start -- --skript`
+  if (grund === 'ECONNREFUSED' || grund === 'ECONNRESET') return `Kein Server auf Port ${port} – starte ihn mit: npm start -- --skript`
   return `Verbindung zu Port ${port} fehlgeschlagen: ${fehler?.message || fehler}`
 }

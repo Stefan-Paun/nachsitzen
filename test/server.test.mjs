@@ -181,6 +181,7 @@ test('Startfehler: belegter Port gibt eine deutsche Meldung statt Absturz', asyn
 test('Startfehler: ungültiger NACHSITZEN_PORT wird abgelehnt', () => {
   assert.equal(pruefePort(undefined), 4800)
   assert.equal(pruefePort(''), 4800)
+  assert.equal(pruefePort(' '), 4800)
   assert.equal(pruefePort('4801'), 4801)
   assert.equal(pruefePort('0'), 0)
   for (const schlecht of ['abc', '-1', '65536', '12.5']) assert.throws(() => pruefePort(schlecht), /Ungültiger Port/)
@@ -196,6 +197,10 @@ test('Spielername: Prüfung und reservierte Wörter', async () => {
   const r = await post(port, '/partie', { name: 'niemand' })
   assert.equal(r.status, 400)
   assert.match(r.body.fehler, /schon belegt/)
+  // Ein abgelehnter Name lässt eine laufende Partie weiterlaufen
+  assert.equal((await post(port, '/partie', { name: 'Stefan' })).status, 200)
+  assert.equal((await post(port, '/partie', { name: 'Tür' })).status, 400)
+  assert.notEqual(s.partie().phase, 'ende')
   await s.schliessen()
 })
 
