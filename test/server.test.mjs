@@ -4,7 +4,8 @@ import http from 'node:http'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { erstelleServer } from '../server.mjs'
+import { erstelleServer, pruefePort, pruefeName } from '../server.mjs'
+import { hinweisFuer, tafelZeile, verbindungsFehler } from '../tools/zughinweis.mjs'
 import { hefteSpeicher } from '../spiel/hefte.mjs'
 import { skriptGehirn } from '../tools/skriptgehirne.mjs'
 import { browserGehirn } from '../spiel/browsergehirn.mjs'
@@ -167,4 +168,50 @@ test('Server: nach dem Ende schreiben Figuren mit heftSchreiben ins Heft, /hefte
     const alle = await r.json(); assert.equal(alle.Mira.length, 2)
     assert.ok(ev.some((e) => e.art === 'status' && e.daten?.hefteGeschrieben === true))
   } finally { await s.schliessen() }
+})
+
+test('Startfehler: belegter Port gibt eine deutsche Meldung statt Absturz', async () => {
+  const a = erstelleServer({ gehirnFabrik: fabrik, port: 0, pause: 0 })
+  const port = await a.starten()
+  const b = erstelleServer({ gehirnFabrik: fabrik, port, pause: 0 })
+  await assert.rejects(b.starten(), /Port \d+ ist belegt – starte mit NACHSITZEN_PORT=\d+ npm start/)
+  await a.schliessen()
+})
+
+test('Startfehler: ungültiger NACHSITZEN_PORT wird abgelehnt', () => {
+  assert.equal(pruefePort(undefined), 4800)
+  assert.equal(pruefePort(''), 4800)
+  assert.equal(pruefePort('4801'), 4801)
+  assert.equal(pruefePort('0'), 0)
+  for (const schlecht of ['abc', '-1', '65536', '12.5']) assert.throws(() => pruefePort(schlecht), /Ungültiger Port/)
+})
+
+test('Spielername: Prüfung und reservierte Wörter', async () => {
+  assert.equal(pruefeName('  Stefan  '), 'Stefan')
+  assert.equal(pruefeName(''), 'Du')
+  assert.equal(pruefeName(undefined), 'Du')
+  for (const schlecht of ['niemand', 'ALLE', 'du', 'Klassenbuch', 'Ben', 'Tür', 'Pulte', 'x'.repeat(21), 'a<b', 'a\u0007b']) assert.throws(() => pruefeName(schlecht), undefined, schlecht)
+  const s = erstelleServer({ gehirnFabrik: fabrik, port: 0, pause: 0 })
+  const port = await s.starten()
+  const r = await post(port, '/partie', { name: 'niemand' })
+  assert.equal(r.status, 400)
+  assert.match(r.body.fehler, /schon belegt/)
+  await s.schliessen()
+})
+
+test('zug.mjs: Hinweis für jede warte-Art und Verbindungsfehler', () => {
+  const faelle = [
+    [{ art: 'sagen', andere: ['Mira', 'Jonas'], pflicht: true }, /DU BIST DRAN: --sagen .*--an Mira\|Jonas.*Pflicht/],
+    [{ art: 'sagen', andere: ['Mira'], pflicht: false }, /--schweigen/],
+    [{ art: 'nacht', orte: ['Tür', 'Tafel'], aufgabe: 'verstecken', optionen: [] }, /NACHT: --platz Tür\|Tafel/],
+    [{ art: 'nacht', orte: ['Tür'], aufgabe: 'holen', optionen: ['Mira'], verwischen: true }, /--ziel Mira.*--verwischen/],
+    [{ art: 'untersuchen', orte: ['Tafel', 'Klassenbuch'], uebrig: 2 }, /noch 2×.*Tafel\|Klassenbuch\|nichts/],
+    [{ art: 'zeigen', ergebnis: 'ein Ergebnis' }, /--zeigen ja\|nein/],
+    [{ art: 'stimme', optionen: ['Mira'] }, /--stimme Mira\|niemand/],
+    [null, /Die anderen sind dran/],
+  ]
+  for (const [w, muster] of faelle) assert.match(hinweisFuer(w), muster)
+  assert.equal(tafelZeile({ art: 'sagen' }), '--- Übersicht: --tafel')
+  assert.equal(tafelZeile({ art: 'nacht' }), null)
+  assert.match(verbindungsFehler(4999, Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } })), /Kein Server auf Port 4999.*npm start -- --skript/)
 })

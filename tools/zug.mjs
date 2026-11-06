@@ -16,6 +16,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { verlaufAlsText } from '../spiel/gehirn.mjs'
 import { spurentafelText } from '../spiel/spurentafel.mjs'
+import { hinweisFuer, tafelZeile, verbindungsFehler } from './zughinweis.mjs'
 
 const [port, ...rest] = process.argv.slice(2)
 if (!port) { console.error('Port fehlt'); process.exit(2) }
@@ -23,7 +24,9 @@ const basis = `http://127.0.0.1:${port}`
 const merker = path.join(os.tmpdir(), `nachsitzen-zug-${port}.json`)
 const arg = (k) => { const i = rest.indexOf(k); return i >= 0 ? (rest[i + 1] && !rest[i + 1].startsWith('--') ? rest[i + 1] : true) : null }
 const json = (r) => r.json()
-const post = (pfad, body) => fetch(basis + pfad, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(json)
+// Netzfehler (kein Server) als kurze Meldung statt Stacktrace
+const netz = async (url, opts) => { try { return await fetch(url, opts) } catch (f) { console.error(verbindungsFehler(port, f)); process.exit(1) } }
+const post = (pfad, body) => netz(basis + pfad, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(json)
 const schlaf = (ms) => new Promise((f) => setTimeout(f, ms))
 
 let ab = 0
@@ -53,7 +56,7 @@ else if (arg('--stimme')) antwort = await post('/aktion', { fuer: arg('--stimme'
 if (antwort && !antwort.ok) console.log(`ABGELEHNT: ${antwort.fehler}`)
 
 if (arg('--tafel')) {
-  const v = await fetch(basis + '/verlauf?ab=0').then(json)
+  const v = await netz(basis + '/verlauf?ab=0').then(json)
   if (!v.status) { console.log('Keine Partie. Starte mit --neu.'); process.exit(0) }
   console.log(spurentafelText(v.ereignisse, v.status.spieler ?? '', v.status.lebende))
   process.exit(0)
@@ -61,8 +64,8 @@ if (arg('--tafel')) {
 
 if (arg('--hefte')) {
   // Die Figuren schreiben nach dem Ende noch (ein Aufruf je Figur) - darauf warten
-  for (let i = 0; i < 40; i++) { const st = await fetch(basis + '/status').then(json); if (!st || st.hefteGeschrieben || st.phase !== 'ende') break; await schlaf(2000) }
-  const h = await fetch(basis + '/hefte').then(json)
+  for (let i = 0; i < 40; i++) { const st = await netz(basis + '/status').then(json); if (!st || st.hefteGeschrieben || st.phase !== 'ende') break; await schlaf(2000) }
+  const h = await netz(basis + '/hefte').then(json)
   if (!h.fehler && !Object.values(h).some((l) => l.length)) console.log('Noch keine Hefteinträge (die Figuren schreiben noch oder es lief ohne KI).')
   if (h.fehler) console.log(h.fehler)
   else { console.log('Die Hefte (Vertrauen: -2 traut gar nicht … +2 vertraut):'); for (const [n, liste] of Object.entries(h)) { const e = liste.at(-1); if (e) console.log(`\n${n}: ${e.eintrag}\n  Vertrauen: ${Object.entries(e.vertrauen || {}).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}`).join(', ') || '-'}`) } }
@@ -73,7 +76,7 @@ if (arg('--hefte')) {
 let gezeigt = ab, status = null, rausGemeldet = false
 const start = Date.now()
 for (;;) {
-  const v = await fetch(basis + '/verlauf?ab=' + gezeigt).then(json)
+  const v = await netz(basis + '/verlauf?ab=' + gezeigt).then(json)
   status = v.status
   for (const e of v.ereignisse) {
     const ROLLE = { schatten: 'der Schatten (du holst nachts jemanden; lüge über deinen Platz; gewinne, wenn nur noch zwei übrig sind)', schluessel: 'der Schlüsselträger (du prüfst nachts eine Person und erfährst, ob sie der Schatten ist; teile es klug)', schueler: 'ein normaler Schüler (finde den Schatten über Spuren, Beobachtungen und Widersprüche)' }
@@ -96,10 +99,5 @@ if (!status) { console.log('Keine Partie. Starte mit --neu.'); process.exit(0) }
 if (status.phase === 'ende') { console.log(`\n--- Partie vorbei (${status.nacht} Nächte). Hefte mit --hefte.`); process.exit(0) }
 const w = status.warte
 console.log(`\n--- Noch im Raum: ${status.lebende.join(', ')} · Phase: ${status.phase} · Nacht ${status.nacht}`)
-if (!w) console.log('--- Die anderen sind dran. Nochmal aufrufen.')
-else if (w.art === 'sagen' || w.art === 'untersuchen' || w.art === 'stimme') console.log('--- Übersicht: --tafel')
-else if (w.art === 'sagen') console.log(`--- DU BIST DRAN: --sagen "..." [--an ${w.andere.join('|')}]${w.pflicht ? ' (Pflicht)' : ' oder --schweigen'}`)
-else if (w.art === 'nacht') console.log(`--- NACHT: --platz ${w.orte.join('|')}${w.aufgabe !== 'verstecken' ? ` --ziel ${w.optionen.join('|')}  (${w.aufgabe === 'holen' ? 'Pflicht: wen du holst' : 'Pflicht: wen du prüfst'})` : ''}${w.verwischen ? ' [--verwischen: einmalig die Spur verwischen]' : ''}`)
-else if (w.art === 'untersuchen') console.log(`--- UNTERSUCHEN (noch ${w.uebrig ?? '?'}× in dieser Partie): --untersuchen ${w.orte.join('|')}|nichts`)
-else if (w.art === 'zeigen') console.log(`--- VORZEIGEN? Dein Ergebnis: „${w.ergebnis}“ · --zeigen ja|nein (vorgezeigt = für alle bewiesen)`)
-else if (w.art === 'stimme') console.log(`--- ABSTIMMUNG (geheim): --stimme ${w.optionen.join('|')}|niemand`)
+if (tafelZeile(w)) console.log(tafelZeile(w))
+console.log(hinweisFuer(w))
