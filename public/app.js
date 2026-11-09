@@ -97,7 +97,13 @@ function farbe(name) {
   return v ? `var(--${name.toLowerCase()})` : 'var(--tinte)'
 }
 
+let hoechsteNr = -1   // hoechste gezeigte Ereignisnummer; Wiederholungen nach einer Wiederverbindung ignorieren
 function zeigeEreignis(e) {
+  if (typeof e.nr === 'number') {
+    if (e.nr === 0 && hoechsteNr >= 0) { frisch(); zeigeTafel() }   // Startereignis einer neuen Partie (z. B. in anderem Tab gestartet)
+    else if (e.nr <= hoechsteNr) return
+    hoechsteNr = e.nr
+  }
   const ich = status?.spieler
   merke(e)
   switch (e.art) {
@@ -345,7 +351,7 @@ $('sagen').onsubmit = (ev) => { ev.preventDefault(); const text = $('text').valu
 $('schweigen').onclick = () => sende({ art: 'schweigt' })
 
 // --- Start und Verbindung --------------------------------------------------------------
-function frisch() { verlauf.innerHTML = ''; tippende = new Map(); karten = { privat: null, morgen: null }; wissen = leeresWissen(0); pulte = null; sprecher = null; schreckeBenutzt = []; $('meinerolle').textContent = '' }
+function frisch() { hoechsteNr = -1; verlauf.innerHTML = ''; tippende = new Map(); karten = { privat: null, morgen: null }; wissen = leeresWissen(0); pulte = null; sprecher = null; schreckeBenutzt = []; $('meinerolle').textContent = '' }
 async function starten(zuschauen) {
   const name = $('name').value.trim()
   if (!zuschauen && !name) { $('name').focus(); return }

@@ -28,11 +28,16 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1', port = Number(process.env.NACHSITZEN_PORT || 4800), pause = 700, startwert = null, log = console.log } = {}) {
   const verbindungen = new Set()
   let spiel = null          // { p, spieler, zuschauen, mensch, gesendet }
+  let partien = 0           // zaehlt die Partien; Teil der SSE-id, damit alte Nummern nicht zur neuen Partie passen
 
+  // Eine SSE-Zeile; Spielereignisse tragen ihre Nummer als `id:`, damit der Browser sie bei der
+  // automatischen Wiederverbindung als Last-Event-ID zurueckschickt.
+  const sseZeile = (art, daten, id = null) => `${id === null ? '' : `id: ${id}\n`}event: ${art}\ndata: ${JSON.stringify(daten)}\n\n`
   const sende = (art, daten) => {
-    const zeile = `event: ${art}\ndata: ${JSON.stringify(daten)}\n\n`
+    const zeile = sseZeile(art, daten, art === 'ereignis' ? `${spiel.kennung}-${daten.nr}` : null)
     for (const res of verbindungen) { if (res.writableEnded) verbindungen.delete(res); else res.write(zeile) }
   }
+  let ping = null   // Kommentarzeile alle 25 s, damit Proxys und Browser die Leitung nicht kappen
   const status = () => spiel && {
     phase: spiel.p.phase, nacht: spiel.p.nacht, runde: spiel.p.runde, lebende: spiel.p.lebende, keller: spiel.p.keller,
     verschwunden: spiel.p.verschwunden, spieler: spiel.spieler, zuschauen: spiel.zuschauen, sieger: spiel.p.sieger,
@@ -64,6 +69,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
       }
     }
     if (spiel) { spiel.beendet = true; if (spiel.p.phase !== 'ende') spiel.mensch?.abbrechen() }   // alte Partie stoppt (Schleife, Tippen, Hefte)
+    meins.kennung = ++partien
     spiel = meins
     const beobachter = (e) => { if (meins.beendet) return; if (sichtbar(e)) sende('ereignis', fuerBrowser(e)); sende('status', status()) }
     spieleBisZumEnde(p, gehirne, { zufall: z, beobachter, abbruch: () => meins.beendet, pause: () => new Promise((f) => setTimeout(f, pause)) })
@@ -115,10 +121,16 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
         verbindungen.add(res)
         req.on('close', () => verbindungen.delete(res))
         if (spiel) {
-          res.write(`event: status\ndata: ${JSON.stringify(status())}\n\n`)   // zuerst, damit der Browser weiss, wer er ist
-          for (const e of spiel.p.ereignisse) if (sichtbar(e)) res.write(`event: ereignis\ndata: ${JSON.stringify(fuerBrowser(e))}\n\n`)
-          res.write(`event: status\ndata: ${JSON.stringify(status())}\n\n`)
-        } else res.write('event: status\ndata: null\n\n')
+          // Last-Event-ID ("<partie>-<nr>"): nur Neueres nachliefern, aber nur aus derselben Partie.
+          // Fremde Partie, Unsinn oder eine Nummer, die es noch nicht gibt, liefert alles.
+          // Eine blanke Zahl (curl, Skripte) gilt fuer die laufende Partie.
+          const m = /^(?:(\d+)-)?(\d+)$/.exec(req.headers['last-event-id'] ?? '')
+          const gueltig = m && (m[1] === undefined || Number(m[1]) === spiel.kennung) && Number(m[2]) < spiel.p.ereignisse.length
+          const letzte = gueltig ? Number(m[2]) : -1
+          res.write(sseZeile('status', status()))   // zuerst, damit der Browser weiss, wer er ist
+          for (const e of spiel.p.ereignisse) if (e.nr > letzte && sichtbar(e)) res.write(sseZeile('ereignis', fuerBrowser(e), `${spiel.kennung}-${e.nr}`))
+          res.write(sseZeile('status', status()))
+        } else res.write(sseZeile('status', null))
         return
       }
       if (req.method === 'POST' && url.pathname === '/partie') {
@@ -165,8 +177,13 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
   return {
     server,
     melde: (art, daten) => sende(art, daten),
-    starten: () => new Promise((f) => server.listen(port, host, () => f(server.address().port))),
-    schliessen: () => new Promise((f) => { for (const r of verbindungen) r.end(); if (spiel) spiel.beendet = true; spiel?.mensch?.abbrechen(); server.close(() => f()) }),
+    starten: () => new Promise((f) => server.listen(port, host, () => {
+      clearInterval(ping)
+      ping = setInterval(() => { for (const res of verbindungen) res.write(': ping\n\n') }, 25_000)
+      ping.unref()
+      f(server.address().port)
+    })),
+    schliessen: () => new Promise((f) => { clearInterval(ping); for (const r of verbindungen) r.end(); if (spiel) spiel.beendet = true; spiel?.mensch?.abbrechen(); server.close(() => f()) }),
     partie: () => spiel?.p ?? null,
   }
 }
