@@ -24,8 +24,28 @@ export const KI_FIGUREN = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora', 'Sam']
 const ZUSCHAUER_ERSATZ = 'Ben'   // nimmt den Platz des Menschen ein, wenn nur zugeschaut wird
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' }
 
+// Port aus der Umgebung: leer -> 4800, sonst ganze Zahl 0-65535, alles andere wirft eine deutsche Meldung.
+export function pruefePort(wert) {
+  if (wert === undefined || wert === null || String(wert).trim() === '') return 4800
+  const n = Number(wert)
+  if (!Number.isInteger(n) || n < 0 || n > 65535) throw new Error(`Ungültiger Port „${wert}“ – NACHSITZEN_PORT muss eine Zahl von 0 bis 65535 sein`)
+  return n
+}
+
+// Spielername: 1-20 Zeichen ohne Steuerzeichen und <>, kein Wort, das im Spiel schon etwas bedeutet.
+// Leer ist erlaubt (Standardname „Du“); gibt den bereinigten Namen zurück oder wirft.
+export function pruefeName(roh) {
+  const name = String(roh ?? '').replace(/\s+/g, ' ').trim()
+  if (!name) return 'Du'
+  if (name.length > 20) throw new Error('Der Name darf höchstens 20 Zeichen lang sein')
+  if (/[\p{Cc}\p{Cf}<>]/u.test(name)) throw new Error('Der Name enthält unerlaubte Zeichen (<, > oder Steuerzeichen)')
+  const reserviert = ['niemand', 'alle', 'du', ZUSCHAUER_ERSATZ, KLASSENBUCH, ...ORT_NAMEN].map((w) => w.toLowerCase())
+  if (reserviert.includes(name.toLowerCase())) throw new Error(`Der Name „${name}“ ist im Spiel schon belegt – wähle einen anderen`)
+  return name
+}
+
 // gehirnFabrik(name, rolle, { mitspieler, spieler, zufall }) -> Gehirn; im Test Skript-Gehirne statt Claude
-export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1', port = Number(process.env.NACHSITZEN_PORT || 4800), pause = 700, startwert = null, log = console.log } = {}) {
+export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1', port = pruefePort(process.env.NACHSITZEN_PORT), pause = 700, startwert = null, log = console.log } = {}) {
   const verbindungen = new Set()
   let spiel = null          // { p, spieler, zuschauen, mensch, gesendet }
   let partien = 0           // zaehlt die Partien; Teil der SSE-id, damit alte Nummern nicht zur neuen Partie passen
@@ -53,7 +73,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
   const fuerBrowser = (e) => { const { sichtbar: _, ...rest } = e; return rest }
 
   function neuePartie({ name, zuschauen }) {
-    const spieler = zuschauen ? null : (String(name || '').trim().slice(0, 20) || 'Du')
+    const spieler = zuschauen ? null : pruefeName(name)
     const namen = [...KI_FIGUREN, zuschauen ? ZUSCHAUER_ERSATZ : spieler]
     if (new Set(namen.map((n) => n.toLowerCase())).size !== namen.length) throw new Error('Der Name ist schon vergeben')
     const z = zufall(startwert ?? Date.now())
@@ -135,7 +155,7 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
       }
       if (req.method === 'POST' && url.pathname === '/partie') {
         const body = await lies(req)
-        const neu = neuePartie(body)   // wirft bei Fehlern, bevor Kopfzeilen gesendet sind
+        const neu = neuePartie(body)   // wirft bei ungueltigem Namen, bevor Kopfzeilen gesendet sind
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(neu))
         return
       }
@@ -177,12 +197,19 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
   return {
     server,
     melde: (art, daten) => sende(art, daten),
-    starten: () => new Promise((f) => server.listen(port, host, () => {
-      clearInterval(ping)
-      ping = setInterval(() => { for (const res of verbindungen) res.write(': ping\n\n') }, 25_000)
-      ping.unref()
-      f(server.address().port)
-    })),
+    starten: () => new Promise((f, w) => {
+      server.once('error', (fehler) => {
+        if (fehler.code === 'EADDRINUSE') w(new Error(`Port ${port} ist belegt – starte mit NACHSITZEN_PORT=${port + 1} npm start`))
+        else if (fehler.code === 'EACCES') w(new Error(`Keine Berechtigung für Port ${port} – wähle einen Port über 1024, z. B. NACHSITZEN_PORT=4801 npm start`))
+        else w(fehler)
+      })
+      server.listen(port, host, () => {
+        clearInterval(ping)
+        ping = setInterval(() => { for (const res of verbindungen) res.write(': ping\n\n') }, 25_000)
+        ping.unref()
+        f(server.address().port)
+      })
+    }),
     schliessen: () => new Promise((f) => { clearInterval(ping); for (const r of verbindungen) r.end(); if (spiel) spiel.beendet = true; spiel?.mensch?.abbrechen(); server.close(() => f()) }),
     partie: () => spiel?.p ?? null,
   }
@@ -198,6 +225,7 @@ function lies(req) {
 
 // --- Start von der Kommandozeile: echte Claude-Gehirne ----------------------------------
 if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) {
+  try {
   if (process.argv.includes('--skript')) {
     // Ohne KI und ohne Kosten: Skript-Gehirne, zum Entwickeln der Oberflaeche
     const { skriptGehirn } = await import('./tools/skriptgehirne.mjs')
@@ -216,5 +244,9 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
   console.log(`Nachsitzen laeuft auf http://localhost:${port}`)
   const t = kosten.heute()
   if (t.aufrufe) console.log(`Heute bisher: ${t.aufrufe} Aufrufe, ${(t.dollar * 100).toFixed(1)} Cent`)
+  }
+  } catch (f) {
+    console.error(f.message)
+    process.exit(1)
   }
 }
