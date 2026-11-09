@@ -48,11 +48,16 @@ export function pruefeName(roh) {
 export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1', port = pruefePort(process.env.NACHSITZEN_PORT), pause = 700, startwert = null, log = console.log } = {}) {
   const verbindungen = new Set()
   let spiel = null          // { p, spieler, zuschauen, mensch, gesendet }
+  let partien = 0           // zaehlt die Partien; Teil der SSE-id, damit alte Nummern nicht zur neuen Partie passen
 
+  // Eine SSE-Zeile; Spielereignisse tragen ihre Nummer als `id:`, damit der Browser sie bei der
+  // automatischen Wiederverbindung als Last-Event-ID zurueckschickt.
+  const sseZeile = (art, daten, id = null) => `${id === null ? '' : `id: ${id}\n`}event: ${art}\ndata: ${JSON.stringify(daten)}\n\n`
   const sende = (art, daten) => {
-    const zeile = `event: ${art}\ndata: ${JSON.stringify(daten)}\n\n`
-    for (const res of verbindungen) res.write(zeile)
+    const zeile = sseZeile(art, daten, art === 'ereignis' ? `${spiel.kennung}-${daten.nr}` : null)
+    for (const res of verbindungen) { if (res.writableEnded) verbindungen.delete(res); else res.write(zeile) }
   }
+  let ping = null   // Kommentarzeile alle 25 s, damit Proxys und Browser die Leitung nicht kappen
   const status = () => spiel && {
     phase: spiel.p.phase, nacht: spiel.p.nacht, runde: spiel.p.runde, lebende: spiel.p.lebende, keller: spiel.p.keller,
     verschwunden: spiel.p.verschwunden, spieler: spiel.spieler, zuschauen: spiel.zuschauen, sieger: spiel.p.sieger,
@@ -71,25 +76,29 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
     const spieler = zuschauen ? null : pruefeName(name)
     const namen = [...KI_FIGUREN, zuschauen ? ZUSCHAUER_ERSATZ : spieler]
     if (new Set(namen.map((n) => n.toLowerCase())).size !== namen.length) throw new Error('Der Name ist schon vergeben')
-    if (spiel && spiel.p.phase !== 'ende') spiel.mensch?.abbrechen()   // erst nach der Prüfung: ein abgelehnter Name lässt die laufende Partie weiterlaufen
     const z = zufall(startwert ?? Date.now())
     const p = P.neuePartie(namen, z, { spieler })
     const figuren = Object.fromEntries(namen.map((n) => [n, n === spieler ? { haut: '#f1cfb0', haar: '#2b2118', frisur: 'wuschel', shirt: '#bd93f9' } : ladeFigur(n).aussehen]))
     const gehirne = {}
-    let mensch = null
+    const meins = { p, spieler, zuschauen, mensch: null, figuren, gehirne, hefteGeschrieben: false, beendet: false }
     for (const n of namen) {
-      if (n === spieler) { mensch = browserGehirn(n, p.rollen[n], { sende }); gehirne[n] = mensch }
+      if (n === spieler) { meins.mensch = browserGehirn(n, p.rollen[n], { sende }); gehirne[n] = meins.mensch }
       else {
         const g = gehirnFabrik(n, p.rollen[n], { mitspieler: namen, spieler, zufall: z, heft: hefte ? hefte.alsText(n) : '' })
-        gehirne[n] = mitTippen(g, n)
+        gehirne[n] = mitTippen(g, n, meins)
       }
     }
-    spiel = { p, spieler, zuschauen, mensch, figuren, gehirne, hefteGeschrieben: false }
-    const beobachter = (e) => { if (sichtbar(e)) sende('ereignis', fuerBrowser(e)); sende('status', status()) }
-    const meins = spiel
-    spieleBisZumEnde(p, gehirne, { zufall: z, beobachter, pause: () => new Promise((f) => setTimeout(f, pause)) })
+    if (spiel) { spiel.beendet = true; if (spiel.p.phase !== 'ende') spiel.mensch?.abbrechen() }   // alte Partie stoppt (Schleife, Tippen, Hefte)
+    meins.kennung = ++partien
+    spiel = meins
+    const beobachter = (e) => { if (meins.beendet) return; if (sichtbar(e)) sende('ereignis', fuerBrowser(e)); sende('status', status()) }
+    spieleBisZumEnde(p, gehirne, { zufall: z, beobachter, abbruch: () => meins.beendet, pause: () => new Promise((f) => setTimeout(f, pause)) })
       .then(() => hefteSchreiben(meins))
-      .catch((f) => { log(`Partie beendet: ${f.message}`); if (p.phase !== 'ende') { p.phase = 'ende'; p.sieger = p.sieger || null } sende('status', status()) })
+      .catch((f) => {
+        log(`Partie beendet: ${f.message}`)
+        if (meins.beendet) return   // abgeloest durch eine neue Partie: nichts mehr senden
+        if (p.phase !== 'ende') { p.phase = 'ende'; p.sieger = p.sieger || null } sende('status', status())
+      })
     return status()
   }
 
@@ -100,12 +109,15 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
     const eintraege = {}
     for (const [n, g] of Object.entries(sp.gehirne)) {
       if (!g.heftSchreiben) continue
+      if (sp !== spiel) return   // neue Partie gestartet: keine weiteren Heft-Aufrufe
       sende('tippt', { von: n })
       try {
         const e = await g.heftSchreiben(P.verlaufFuer(sp.p, n), z)
+        if (sp !== spiel) return   // inzwischen neue Partie: Eintrag verwerfen, nichts senden
         hefte.schreiben(n, { ...e, rolle: sp.p.rollen[n], schatten: z.schatten, sieger: z.sieger, spieler: sp.spieler })
         eintraege[n] = e
       } catch (f) { log(`Heft ${n}: ${f.message}`) }
+      if (sp !== spiel) return
       sende('tippt', { von: n, fertig: true })
     }
     sp.hefteGeschrieben = true
@@ -113,8 +125,9 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
   }
 
   // KI-Gehirne melden vorher "tippt", damit der Browser Leben zeigt
-  function mitTippen(g, n) {
-    const h = (fn) => async (...a) => { sende('tippt', { von: n }); try { return await fn(...a) } finally { sende('tippt', { von: n, fertig: true }) } }
+  function mitTippen(g, n, sp) {
+    const melde = (daten) => { if (!sp.beendet) sende('tippt', daten) }
+    const h = (fn) => async (...a) => { melde({ von: n }); try { return await fn(...a) } finally { melde({ von: n, fertig: true }) } }
     return { ...g, abend: h(g.abend), nacht: g.nacht, diskussion: h(g.diskussion), abstimmung: h(g.abstimmung) }
   }
 
@@ -128,10 +141,16 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
         verbindungen.add(res)
         req.on('close', () => verbindungen.delete(res))
         if (spiel) {
-          res.write(`event: status\ndata: ${JSON.stringify(status())}\n\n`)   // zuerst, damit der Browser weiss, wer er ist
-          for (const e of spiel.p.ereignisse) if (sichtbar(e)) res.write(`event: ereignis\ndata: ${JSON.stringify(fuerBrowser(e))}\n\n`)
-          res.write(`event: status\ndata: ${JSON.stringify(status())}\n\n`)
-        } else res.write('event: status\ndata: null\n\n')
+          // Last-Event-ID ("<partie>-<nr>"): nur Neueres nachliefern, aber nur aus derselben Partie.
+          // Fremde Partie, Unsinn oder eine Nummer, die es noch nicht gibt, liefert alles.
+          // Eine blanke Zahl (curl, Skripte) gilt fuer die laufende Partie.
+          const m = /^(?:(\d+)-)?(\d+)$/.exec(req.headers['last-event-id'] ?? '')
+          const gueltig = m && (m[1] === undefined || Number(m[1]) === spiel.kennung) && Number(m[2]) < spiel.p.ereignisse.length
+          const letzte = gueltig ? Number(m[2]) : -1
+          res.write(sseZeile('status', status()))   // zuerst, damit der Browser weiss, wer er ist
+          for (const e of spiel.p.ereignisse) if (e.nr > letzte && sichtbar(e)) res.write(sseZeile('ereignis', fuerBrowser(e), `${spiel.kennung}-${e.nr}`))
+          res.write(sseZeile('status', status()))
+        } else res.write(sseZeile('status', null))
         return
       }
       if (req.method === 'POST' && url.pathname === '/partie') {
@@ -184,9 +203,14 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
         else if (fehler.code === 'EACCES') w(new Error(`Keine Berechtigung für Port ${port} – wähle einen Port über 1024, z. B. NACHSITZEN_PORT=4801 npm start`))
         else w(fehler)
       })
-      server.listen(port, host, () => f(server.address().port))
+      server.listen(port, host, () => {
+        clearInterval(ping)
+        ping = setInterval(() => { for (const res of verbindungen) res.write(': ping\n\n') }, 25_000)
+        ping.unref()
+        f(server.address().port)
+      })
     }),
-    schliessen: () => new Promise((f) => { for (const r of verbindungen) r.end(); spiel?.mensch?.abbrechen(); server.close(() => f()) }),
+    schliessen: () => new Promise((f) => { clearInterval(ping); for (const r of verbindungen) r.end(); if (spiel) spiel.beendet = true; spiel?.mensch?.abbrechen(); server.close(() => f()) }),
     partie: () => spiel?.p ?? null,
   }
 }

@@ -15,10 +15,10 @@ import { SCHATTEN, SCHLUESSEL } from '../spiel/rollen.mjs'
 const fabrik = (name, rolle, { zufall: z }) => skriptGehirn(name, rolle, z)
 
 // Liest SSE-Ereignisse, bis `bis(ereignisse)` wahr ist oder die Zeit um ist.
-async function sse(port, bis, { auf = async () => {}, zeit = 8000 } = {}) {
+async function sse(port, bis, { auf = async () => {}, zeit = 8000, kopf = {} } = {}) {
   const ac = new AbortController()
   const wecker = setTimeout(() => ac.abort(), zeit)
-  const r = await fetch(`http://127.0.0.1:${port}/ereignisse`, { signal: ac.signal })
+  const r = await fetch(`http://127.0.0.1:${port}/ereignisse`, { signal: ac.signal, headers: kopf })
   const leser = r.body.getReader(); const dec = new TextDecoder()
   const ereignisse = []; let rest = ''
   const ende = Date.now() + zeit
@@ -30,7 +30,7 @@ async function sse(port, bis, { auf = async () => {}, zeit = 8000 } = {}) {
       while ((i = rest.indexOf('\n\n')) >= 0) {
         const block = rest.slice(0, i); rest = rest.slice(i + 2)
         const art = /^event: (.+)$/m.exec(block)?.[1], data = /^data: (.*)$/m.exec(block)?.[1]
-        const e = { art, daten: JSON.parse(data) }
+        const e = { art, daten: JSON.parse(data), id: /^id: (.+)$/m.exec(block)?.[1] ?? null }
         ereignisse.push(e); await auf(e)
       }
       if (bis(ereignisse)) break
@@ -219,4 +219,78 @@ test('zug.mjs: Hinweis für jede warte-Art und Verbindungsfehler', () => {
   assert.equal(tafelZeile({ art: 'sagen' }), '--- Übersicht: --tafel')
   assert.equal(tafelZeile({ art: 'nacht' }), null)
   assert.match(verbindungsFehler(4999, Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } })), /Kein Server auf Port 4999.*npm start -- --skript/)
+})
+
+test('Server: SSE traegt id: und liefert mit Last-Event-ID nur Neueres nach', async () => {
+  const s = erstelleServer({ gehirnFabrik: fabrik, port: 0, pause: 0, startwert: 5 })
+  const port = await s.starten()
+  try {
+    await post(port, '/partie', { zuschauen: true })
+    const ende = (l) => l.some((e) => e.art === 'status' && e.daten?.phase === 'ende')
+    await sse(port, ende)
+    // ohne Header kommt alles, jedes Ereignis mit id = nr
+    const alle = (await sse(port, ende)).filter((e) => e.art === 'ereignis')
+    assert.ok(alle.length > 10)
+    assert.ok(alle.every((e) => e.id === `1-${e.daten.nr}`))
+    assert.equal(alle[0].daten.nr, 0)
+    // mit Last-Event-ID: 5 nur ab nr 6
+    const rest = (await sse(port, ende, { kopf: { 'last-event-id': '1-5' } })).filter((e) => e.art === 'ereignis')
+    assert.equal(rest[0].daten.nr, 6)
+    assert.equal(rest.length, alle.filter((e) => e.daten.nr > 5).length)
+    // blanke Zahl gilt fuer die laufende Partie
+    const blank = (await sse(port, ende, { kopf: { 'last-event-id': '5' } })).filter((e) => e.art === 'ereignis')
+    assert.equal(blank[0].daten.nr, 6)
+    // eine Nummer, die es noch nicht gibt, oder eine fremde Partie liefert alles
+    const fremd = (await sse(port, ende, { kopf: { 'last-event-id': '1-99999' } })).filter((e) => e.art === 'ereignis')
+    assert.equal(fremd.length, alle.length)
+    const andere = (await sse(port, ende, { kopf: { 'last-event-id': '7-5' } })).filter((e) => e.art === 'ereignis')
+    assert.equal(andere.length, alle.length)
+    // Unsinn im Header wird wie "kein Header" behandelt
+    const unsinn = (await sse(port, ende, { kopf: { 'last-event-id': 'abc' } })).filter((e) => e.art === 'ereignis')
+    assert.equal(unsinn.length, alle.length)
+  } finally { await s.schliessen() }
+})
+
+test('Server: neue Partie beendet die laufende Zuschauer-Partie (keine Gehirn-Aufrufe, keine alten Ereignisse)', async () => {
+  let aktuell = 1
+  const aufrufe = { 1: 0, 2: 0 }
+  const zaehlend = (name, rolle, { zufall: z }) => {
+    const nr = aktuell
+    const g = skriptGehirn(name, rolle, z)
+    const w = (fn) => (...a) => { aufrufe[nr]++; return fn.apply(g, a) }
+    return { ...g, abend: w(g.abend), nacht: w(g.nacht), diskussion: w(g.diskussion), abstimmung: w(g.abstimmung) }
+  }
+  const s = erstelleServer({ gehirnFabrik: zaehlend, port: 0, pause: 30, startwert: 5 })
+  const port = await s.starten()
+  try {
+    await post(port, '/partie', { zuschauen: true })
+    const alt = s.partie()
+    await new Promise((f) => setTimeout(f, 250))
+    assert.ok(aufrufe[1] > 0 && alt.phase !== 'ende', 'alte Partie laeuft noch')
+    aktuell = 2
+    await post(port, '/partie', { name: 'Test' })
+    const [ereignisse, anzahl] = [alt.ereignisse.length, aufrufe[1]]
+    const ev = await sse(port, () => false, { zeit: 500 })
+    assert.equal(alt.ereignisse.length, ereignisse, 'alte Partie erzeugt keine Ereignisse mehr')
+    assert.equal(aufrufe[1], anzahl, 'alte Gehirne werden nicht mehr gefragt')
+    const neu = s.partie()
+    assert.notEqual(neu, alt)
+    // Im Strom stehen nur Ereignisse der neuen Partie (Mensch Test, keine Zuschauer-Rollenliste)
+    assert.ok(ev.filter((e) => e.art === 'status' && e.daten).every((e) => e.daten.spieler === 'Test' && !e.daten.zuschauen))
+  } finally { await s.schliessen() }
+})
+
+test('Server: eine abgelehnte neue Partie (doppelter Name) laesst die laufende Partie weiterlaufen', async () => {
+  const s = erstelleServer({ gehirnFabrik: fabrik, port: 0, pause: 20, startwert: 5 })
+  const port = await s.starten()
+  try {
+    await post(port, '/partie', { zuschauen: true })
+    const alt = s.partie()
+    const r = await post(port, '/partie', { name: 'Mira' })
+    assert.equal(r.status, 400)
+    assert.equal(s.partie(), alt)
+    const ev = await sse(port, (l) => l.some((e) => e.art === 'status' && e.daten?.phase === 'ende'))
+    assert.equal(alt.phase, 'ende', 'alte Partie wurde nicht abgewuergt')
+    assert.ok(ev.length > 0)
+  } finally { await s.schliessen() }
 })
