@@ -11,10 +11,16 @@
 import * as P from './partie.mjs'
 import { ORT_NAMEN, KLASSENBUCH, behauptungAus } from './welt.mjs'
 
-export async function spieleBisZumEnde(p, gehirne, { zufall, beobachter = () => {}, pause = async () => {} } = {}) {
+// `abbruch()` (optional): liefert true, sobald die Partie nicht mehr gebraucht wird (z. B. neue Partie gestartet).
+// Geprueft wird vor jedem Gehirn-Aufruf, vor jeder Meldung und nach jeder Pause; dann wirft die Schleife
+// `Partie abgebrochen`, ohne weitere (kostenpflichtige) Aufrufe zu starten.
+export async function spieleBisZumEnde(p, gehirne, { zufall, beobachter = () => {}, pause: pause0 = async () => {}, abbruch = () => false } = {}) {
+  const pruefe = () => { if (abbruch()) throw new Error('Partie abgebrochen') }
+  const pause = async () => { pruefe(); await pause0(); pruefe() }
   let gesehen = 0
-  const melde = () => { for (; gesehen < p.ereignisse.length; gesehen++) beobachter(p.ereignisse[gesehen], p) }
-  const sicht = (n) => P.verlaufFuer(p, n)
+  const melde = () => { pruefe(); for (; gesehen < p.ereignisse.length; gesehen++) beobachter(p.ereignisse[gesehen], p) }
+  // sicht(n) steht als Argument vor jedem Gehirn-Aufruf: hier greift die Bremse zuerst
+  const sicht = (n) => { pruefe(); return P.verlaufFuer(p, n) }
   melde()
 
   if (p.phase === 'abend') {
