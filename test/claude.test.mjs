@@ -44,6 +44,47 @@ test('Anfrage: refusal und reiner Text geben kein Werkzeug, 429 wird wiederholt,
   await assert.rejects(claudeAnfrage({ schluessel: 'k', kosten, fetchFn: antwortMit({ error: { message: 'bad' } }, 400) })({ system: 'S', nachricht: 'N', tools: [] }), /API 400/)
 })
 
+const ERFOLG = { stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'x', input: {} }], usage: {} }
+const leer = { system: 'S', nachricht: 'N', tools: [] }
+
+test('Anfrage: Netzfehler wird wiederholt, Erfolg danach liefert das Werkzeug', async () => {
+  let n = 0
+  const fetchFn = async () => { if (n++ === 0) throw new TypeError('fetch failed'); return antwortMit(ERFOLG)() }
+  const kosten = kostenRechner({ pfad: tmpPfad() })
+  const erg = await claudeAnfrage({ schluessel: 'k', kosten, fetchFn, warte: 0 })(leer)
+  assert.equal(erg.werkzeug.name, 'x'); assert.equal(n, 2)
+  assert.equal(kosten.heute().aufrufe, 1)   // nur die erfolgreiche Antwort wird gebucht
+})
+
+test('Anfrage: dreimal Timeout gibt kein Werkzeug mit Grund zeit, dauerhafter Netzfehler Grund netz', async () => {
+  let n = 0
+  const kosten = kostenRechner({ pfad: tmpPfad() })
+  const zeit = async () => { n++; throw new DOMException('timeout', 'TimeoutError') }
+  assert.deepEqual(await claudeAnfrage({ schluessel: 'k', kosten, fetchFn: zeit, warte: 0 })(leer), { werkzeug: null, grund: 'zeit' })
+  assert.equal(n, 3)
+  const netz = async () => { throw new TypeError('fetch failed') }
+  assert.deepEqual(await claudeAnfrage({ schluessel: 'k', kosten, fetchFn: netz, warte: 0 })(leer), { werkzeug: null, grund: 'netz' })
+  assert.equal(kosten.heute().aufrufe, 0)
+})
+
+test('Anfrage: unbekannte Fehler aus fetchFn werfen weiter', async () => {
+  const fetchFn = async () => { throw new RangeError('kaputt') }
+  await assert.rejects(claudeAnfrage({ schluessel: 'k', fetchFn, warte: 0 })(leer), /kaputt/)
+})
+
+test('Anfrage: Retry-After wird gelesen und auf 5 s begrenzt, sonst gilt warte', async () => {
+  const echt = globalThis.setTimeout
+  const waits = []
+  globalThis.setTimeout = (f, ms) => { waits.push(ms); return echt(f, 0) }
+  try {
+    const mit = (wert) => { let n = 0; return async () => (n++ === 0 ? { ok: false, status: 429, headers: new Headers(wert == null ? {} : { 'retry-after': wert }), text: async () => '' } : antwortMit(ERFOLG)()) }
+    await claudeAnfrage({ schluessel: 'k', fetchFn: mit('1'), warte: 800 })(leer)
+    await claudeAnfrage({ schluessel: 'k', fetchFn: mit('60'), warte: 800 })(leer)
+    await claudeAnfrage({ schluessel: 'k', fetchFn: mit(null), warte: 7 })(leer)
+  } finally { globalThis.setTimeout = echt }
+  assert.deepEqual(waits, [1000, 5000, 7])
+})
+
 test('Kostenbremse: ueber dem Tagesdeckel geht keine Anfrage mehr raus', async () => {
   const kosten = kostenRechner({ pfad: tmpPfad(), deckel: 0.001 })
   kosten.buchen({ input_tokens: 20000 })     // 0,002 $
