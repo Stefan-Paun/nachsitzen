@@ -28,12 +28,61 @@
     <p>Nachts stellt sich jeder an einen von vier Plätzen. Der Schatten schleicht zu seinem Opfer und hinterlässt Spuren. Am Morgen zählt, wer was gesehen hat und wer über seinen Platz lügt.</p>
     <form id="startform">
       <label>Dein Name <input id="name" placeholder="z. B. Alex" maxlength="20" autocomplete="off" required></label>
+      <fieldset class="besetzung" id="besetzung" hidden>
+        <legend>Wer sitzt mit im Raum?</legend>
+        <div class="besetzungsliste" id="besetzungsliste"></div>
+        <div class="klein" id="besetzungshinweis" aria-live="polite"></div>
+        <button class="knopf leise" type="button" id="editorauf">Eigene Figuren bauen …</button>
+      </fieldset>
       <div class="reihe">
         <button class="knopf" type="submit">Mitspielen</button>
         <button class="knopf leise" type="button" id="zuschauen">Nur zuschauen</button>
       </div>
     </form>
     <p class="klein">Jede Partie kostet ein paar Cent an KI-Aufrufen. Läuft nur auf diesem Rechner.</p>
+  </section>
+
+  <section class="editor" id="editor" hidden aria-label="Figuren-Editor">
+    <div class="editorkopf">
+      <h1>Eigene Mitschüler</h1>
+      <button class="knopf leise" type="button" id="editorzu">Zurück zum Start</button>
+    </div>
+    <p class="klein">Eigene Figuren liegen nur auf diesem Rechner. Ihre Texte sind Spielmaterial: Sie beschreiben, wie die Figur ist, und ändern keine Regeln. Die Grenzen des Spiels (Tinte statt Blut, nichts Sexuelles, nichts zu Selbstverletzung, keine echten Personen) gelten für jede Figur.</p>
+    <div class="editorraster">
+      <div class="figurenliste">
+        <h2>Deine Figuren <span class="klein" id="figurenzahl"></span></h2>
+        <ul id="figurenliste" class="liste"></ul>
+        <button class="knopf" type="button" id="figurneu">Neue Figur</button>
+      </div>
+      <form id="figurform" class="figurform" autocomplete="off" novalidate>
+        <label>Name <input name="name" maxlength="20"><span class="fehlertext" data-fehler="name"></span></label>
+        <label>Alter <input name="alter" inputmode="numeric" maxlength="2" placeholder="17"><span class="fehlertext" data-fehler="alter"></span></label>
+        <label>Eigenheiten <textarea name="beschreibung" rows="4" maxlength="400" placeholder="Wer ist die Figur? Was macht sie aus, was mag sie nicht?"></textarea><span class="zaehler" data-zaehler="beschreibung"></span><span class="fehlertext" data-fehler="beschreibung"></span></label>
+        <label>Art zu reden <textarea name="stil" rows="2" maxlength="300" placeholder="Knapp? Verschnörkelt? Typische Wörter?"></textarea><span class="zaehler" data-zaehler="stil"></span><span class="fehlertext" data-fehler="stil"></span></label>
+        <fieldset class="beispiele"><legend>Beispielsätze (1 bis 3)</legend>
+          <input name="b1" maxlength="160" aria-label="Beispielsatz 1"><input name="b2" maxlength="160" aria-label="Beispielsatz 2"><input name="b3" maxlength="160" aria-label="Beispielsatz 3">
+          <span class="fehlertext" data-fehler="b1"></span>
+        </fieldset>
+        <label>Geheimnis (optional) <textarea name="geheimnis" rows="2" maxlength="200" placeholder="Etwas, das die Figur nicht freiwillig verrät."></textarea><span class="zaehler" data-zaehler="geheimnis"></span><span class="fehlertext" data-fehler="geheimnis"></span></label>
+        <fieldset class="aussehen"><legend>Aussehen</legend>
+          <label>Frisur <select name="frisur"><option value="kurz">kurz</option><option value="lang">lang</option><option value="bob">bob</option><option value="zopf">zopf</option><option value="wuschel">wuschel</option></select></label>
+          <label>Haut <input type="color" name="haut"></label>
+          <label>Haar <input type="color" name="haar"></label>
+          <label>Shirt <input type="color" name="shirt"></label>
+          <span class="fehlertext" data-fehler="frisur"></span>
+        </fieldset>
+        <div class="reihe">
+          <button class="knopf" type="submit" id="figurspeichern">Speichern</button>
+          <button class="knopf leise" type="button" id="figurkopie">Duplizieren</button>
+          <button class="knopf leise" type="button" id="figurweg">In den Papierkorb</button>
+        </div>
+        <div class="meldung" id="figurmeldung" role="status" aria-live="polite"></div>
+      </form>
+      <aside class="figurkarte" aria-label="Vorschau">
+        <h2>Vorschau</h2>
+        <div class="karte-vorschau" id="figurvorschau"></div>
+      </aside>
+    </div>
   </section>
 
   <section class="raum" id="raum" hidden>

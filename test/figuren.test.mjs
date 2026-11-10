@@ -168,3 +168,20 @@ test('Speicher: Standardordner liegt neben den Heften und folgt XDG_DATA_HOME', 
   process.env.XDG_DATA_HOME = '/tmp/xdg-test'
   try { assert.equal(figurenOrdner(), path.join('/tmp/xdg-test', 'nachsitzen', 'figuren')) } finally { if (alt === undefined) delete process.env.XDG_DATA_HOME; else process.env.XDG_DATA_HOME = alt }
 })
+
+test('Besetzung (Oberfläche): Zähler, Formular <-> Figur, Kopiename', async () => {
+  const B = await import('../public/besetzung.js')
+  assert.equal(B.pruefeBesetzung(2).ok, false); assert.match(B.pruefeBesetzung(2).text, /noch 1 Figur /)
+  assert.equal(B.pruefeBesetzung(3).ok, true); assert.equal(B.pruefeBesetzung(7).ok, true); assert.equal(B.pruefeBesetzung(8).ok, false)
+  assert.match(B.pruefeBesetzung(6).text, /7 im Raum/)
+  const f = B.formularZuFigur({ ...B.LEER, name: 'Paula', beschreibung: gueltig().beschreibung, stil: gueltig().stil, b1: ' Hm, na gut. ', b2: '', b3: 'Na gut, dann.', alter: '' })
+  assert.deepEqual(f.beispiele, ['Hm, na gut.', 'Na gut, dann.']); assert.equal('alter' in f, false); assert.equal('geheimnis' in f, false)
+  assert.ok(pruefeFigur(f).ok, JSON.stringify(pruefeFigur(f).fehler))   // das Formular erzeugt Figuren, die das Schema annimmt
+  const zurueck = B.figurZuFormular(pruefeFigur(gueltig()).figur)
+  assert.equal(zurueck.b2, 'Ich zeichne nur, was ich sehe.'); assert.equal(zurueck.alter, '16')
+  assert.equal(B.kopieName('Paula', ['Paula']), 'Paula 2')
+  assert.equal(B.kopieName('Paula 2', ['Paula', 'Paula 2']), 'Paula 3')
+  assert.ok(B.kopieName('A'.repeat(20), []).length <= 20)
+  assert.deepEqual(B.fehlerJeFeld([{ feld: 'name', text: 'x' }, { feld: 'beispiele', text: 'y' }]), { name: ['x'], b1: ['y'] })
+  assert.match(B.farbeFuer('Paula'), /^hsl\(\d+ 60% 68%\)$/)
+})

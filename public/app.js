@@ -3,6 +3,8 @@
 
 import { layout, zeichneFigur, klasseAnimator, waehleSchreck } from './klasse.js'
 import { tonAnlage } from './ton.js'
+import { starteEditor, besetzung } from './editor.js'
+import { farbeFuer } from './besetzung.js'
 
 const $ = (id) => document.getElementById(id)
 const ROLLE = { schatten: 'der Schatten', schluessel: 'der Schlüsselträger', schueler: 'ein normaler Schüler' }
@@ -94,7 +96,7 @@ function blase(von, text, { an = null, still = false } = {}) {
 function farbe(name) {
   if (name === status?.spieler) return 'var(--ich)'
   const v = getComputedStyle(document.documentElement).getPropertyValue(`--${name.toLowerCase()}`)
-  return v ? `var(--${name.toLowerCase()})` : 'var(--tinte)'
+  return v.trim() ? `var(--${name.toLowerCase()})` : farbeFuer(name)   // eigene Figuren: stabile Farbe aus dem Namen
 }
 
 let hoechsteNr = -1   // hoechste gezeigte Ereignisnummer; Wiederholungen nach einer Wiederverbindung ignorieren
@@ -355,13 +357,15 @@ function frisch() { hoechsteNr = -1; verlauf.innerHTML = ''; tippende = new Map(
 async function starten(zuschauen) {
   const name = $('name').value.trim()
   if (!zuschauen && !name) { $('name').focus(); return }
-  const r = await fetch('/partie', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, zuschauen }) })
+  const r = await fetch('/partie', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, zuschauen, besetzung: besetzung() }) })
   const d = await r.json()
   if (d && d.fehler) { alert(d.fehler); return }
   frisch()
   $('start').hidden = true; $('raum').hidden = false; $('eingabe').hidden = zuschauen
   verbinde()
 }
+// Eigene Figuren und Besetzung (fehlt der Server-Teil, bleibt alles wie bisher)
+starteEditor({ onAenderung: (ok) => { for (const b of document.querySelectorAll('#startform button[type="submit"], #zuschauen')) b.disabled = !ok } }).catch(() => {})
 $('startform').onsubmit = (ev) => { ev.preventDefault(); starten(false) }
 $('zuschauen').onclick = () => starten(true)
 $('neu').onclick = () => { $('raum').hidden = true; $('eingabe').hidden = true; $('start').hidden = false; $('neu').hidden = true; quelle?.close(); quelle = null }
