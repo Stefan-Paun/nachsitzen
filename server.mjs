@@ -17,6 +17,8 @@ import { apiSchluessel } from './spiel/schluessel.mjs'
 import { kostenRechner, deckelAusUmgebung } from './spiel/kosten.mjs'
 import { ORT_NAMEN, KLASSENBUCH } from './spiel/welt.mjs'
 import { hefteSpeicher } from './spiel/hefte.mjs'
+import { figurenSpeicher } from './spiel/figurenspeicher.mjs'
+import { pruefeFigur, kennung, MAX_EIGENE, GRENZEN } from './spiel/figurenschema.mjs'
 
 const HIER = path.dirname(fileURLToPath(import.meta.url))
 const OEFFENTLICH = path.join(HIER, 'public')
@@ -44,8 +46,21 @@ export function pruefeName(roh) {
   return name
 }
 
-// gehirnFabrik(name, rolle, { mitspieler, spieler, zufall }) -> Gehirn; im Test Skript-Gehirne statt Claude
-export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1', port = pruefePort(process.env.NACHSITZEN_PORT), pause = 700, startwert = null, log = console.log } = {}) {
+export const MAX_KI = 7, MIN_KI = 3   // plus Mensch oder Ben: 4 bis 8 Figuren wie in rollen.mjs
+const MAX_FIGUREN_KOERPER = 8_000       // Bytes fuer Routen unter /figuren
+
+// Herkunftspruefung fuer die Figuren-Routen (zusaetzlich zur Host-Pruefung): Ein Browser schickt bei
+// fremden Seiten Origin bzw. Sec-Fetch-Site mit; Skripte (curl, Tests) schicken oft keins von beiden.
+export function herkunftOk(headers) {
+  const o = headers.origin
+  if (o !== undefined && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o)) return false
+  const site = headers['sec-fetch-site']
+  return site === undefined || site === 'same-origin' || site === 'none'
+}
+
+// gehirnFabrik(name, rolle, { mitspieler, spieler, zufall, figur }) -> Gehirn; im Test Skript-Gehirne statt Claude
+// figuren: Speicher fuer eigene Figuren (figurenSpeicher) oder null = Editor und eigene Figuren aus
+export function erstelleServer({ gehirnFabrik, hefte = null, figuren: eigene = null, host = '127.0.0.1', port = pruefePort(process.env.NACHSITZEN_PORT), pause = 700, startwert = null, log = console.log } = {}) {
   const verbindungen = new Set()
   let spiel = null          // { p, spieler, zuschauen, mensch, gesendet }
   let partien = 0           // zaehlt die Partien; Teil der SSE-id, damit alte Nummern nicht zur neuen Partie passen
@@ -72,19 +87,38 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
   const sichtbar = (e) => spiel.zuschauen || e.sichtbar.includes(spiel.spieler) || !spiel.p.lebende.includes(spiel.spieler)
   const fuerBrowser = (e) => { const { sichtbar: _, ...rest } = e; return rest }
 
-  function neuePartie({ name, zuschauen }) {
+  // Besetzung (KI-Figuren) aufloesen: Namen -> Figurendaten. Ohne Angabe die sechs mitgelieferten.
+  function besetzen(wunsch) {
+    if (wunsch === undefined || wunsch === null) return KI_FIGUREN.map((n) => ladeFigur(n))
+    if (!Array.isArray(wunsch) || wunsch.some((n) => typeof n !== 'string')) throw new Error('Die Besetzung muss eine Liste von Namen sein')
+    if (wunsch.length < MIN_KI || wunsch.length > MAX_KI) throw new Error(`Wähle ${MIN_KI} bis ${MAX_KI} Figuren (dazu kommst du oder Ben: 4 bis 8 im Raum)`)
+    const gesehen = new Set()
+    return wunsch.map((n) => {
+      if (gesehen.has(n.toLowerCase())) throw new Error(`„${n.slice(0, 20)}“ ist doppelt gewählt`)
+      gesehen.add(n.toLowerCase())
+      const eingebaut = KI_FIGUREN.find((k) => k.toLowerCase() === n.toLowerCase())
+      if (eingebaut) return ladeFigur(eingebaut)
+      const gefunden = eigene?.vonName(n)
+      if (!gefunden) throw new Error(`Die Figur „${n.slice(0, 20)}“ gibt es nicht`)
+      return gefunden
+    })
+  }
+
+  function neuePartie({ name, zuschauen, besetzung }) {
     const spieler = zuschauen ? null : pruefeName(name)
-    const namen = [...KI_FIGUREN, zuschauen ? ZUSCHAUER_ERSATZ : spieler]
+    const ki = besetzen(besetzung)
+    const namen = [...ki.map((f) => f.name), zuschauen ? ZUSCHAUER_ERSATZ : spieler]
     if (new Set(namen.map((n) => n.toLowerCase())).size !== namen.length) throw new Error('Der Name ist schon vergeben')
     const z = zufall(startwert ?? Date.now())
     const p = P.neuePartie(namen, z, { spieler })
-    const figuren = Object.fromEntries(namen.map((n) => [n, n === spieler ? { haut: '#f1cfb0', haar: '#2b2118', frisur: 'wuschel', shirt: '#bd93f9' } : ladeFigur(n).aussehen]))
+    const datenVon = Object.fromEntries(ki.map((f) => [f.name, f]))
+    const figuren = Object.fromEntries(namen.map((n) => [n, n === spieler ? { haut: '#f1cfb0', haar: '#2b2118', frisur: 'wuschel', shirt: '#bd93f9' } : (datenVon[n] ?? ladeFigur(n)).aussehen]))
     const gehirne = {}
-    const meins = { p, spieler, zuschauen, mensch: null, figuren, gehirne, hefteGeschrieben: false, beendet: false }
+    const meins = { p, spieler, zuschauen, mensch: null, figuren: figuren, gehirne, hefteGeschrieben: false, beendet: false }
     for (const n of namen) {
       if (n === spieler) { meins.mensch = browserGehirn(n, p.rollen[n], { sende }); gehirne[n] = meins.mensch }
       else {
-        const g = gehirnFabrik(n, p.rollen[n], { mitspieler: namen, spieler, zufall: z, heft: hefte ? hefte.alsText(n) : '' })
+        const g = gehirnFabrik(n, p.rollen[n], { mitspieler: namen, spieler, zufall: z, heft: hefte ? hefte.alsText(n) : '', figur: datenVon[n] ?? ladeFigur(n) })
         gehirne[n] = mitTippen(g, n, meins)
       }
     }
@@ -136,6 +170,37 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
     if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(hostKopf)) { res.writeHead(403).end('nur lokal'); return }
     const url = new URL(req.url, `http://${hostKopf}`)
     try {
+      if (url.pathname === '/figuren' || url.pathname.startsWith('/figuren/')) {
+        if (!eigene) { res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: false, fehler: 'Eigene Figuren sind abgeschaltet' })); return }
+        if (!herkunftOk(req.headers)) { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: false, fehler: 'Fremde Herkunft' })); return }
+        const antwort = (status, daten) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(daten))
+        const schreibend = req.method !== 'GET'
+        if (schreibend && !/^application\/json(;|$)/i.test(req.headers['content-type'] || '')) { antwort(415, { ok: false, fehler: 'Nur application/json' }); return }
+        const teile = url.pathname.split('/').slice(2)   // '' | ['pruefen'] | [kennung]
+        if (teile.length > 1 || (teile.length === 1 && teile[0] === '')) { res.writeHead(404).end('nicht gefunden'); return }
+        try {
+          if (req.method === 'GET' && teile.length === 0) {
+            const { figuren: liste, kaputt } = eigene.liste()
+            antwort(200, { eigene: liste, kaputt, mitgeliefert: KI_FIGUREN.map((n) => ladeFigur(n)), max: MAX_EIGENE, grenzen: GRENZEN, besetzung: { min: MIN_KI, max: MAX_KI } })
+          } else if (req.method === 'POST' && teile[0] === 'pruefen') {
+            const body = await lies(req, MAX_FIGUREN_KOERPER)
+            const r = pruefeFigur(body.figur)
+            const k = r.ok ? kennung(r.figur.name) : ''
+            antwort(200, { ok: r.ok, fehler: r.fehler, figur: r.figur, kennung: k, vorhanden: !!k && !!eigene.lesen(k) })
+          } else if (req.method === 'POST' && teile.length === 0) {
+            const body = await lies(req, MAX_FIGUREN_KOERPER)
+            antwort(200, { ok: true, figur: eigene.anlegen(body.figur) })
+          } else if (req.method === 'PUT' && teile.length === 1) {
+            const body = await lies(req, MAX_FIGUREN_KOERPER)
+            antwort(200, { ok: true, figur: eigene.ersetzen(teile[0], body.figur) })
+          } else if (req.method === 'DELETE' && teile.length === 1) {
+            antwort(200, { ok: true, papierkorb: eigene.loeschen(teile[0]) })
+          } else res.writeHead(405).end()
+        } catch (f) {
+          antwort(f.status || 400, { ok: false, fehler: f.message, felder: f.fehler ?? [] })
+        }
+        return
+      }
       if (req.method === 'GET' && url.pathname === '/ereignisse') {
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
         verbindungen.add(res)
@@ -190,7 +255,8 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
       }
       res.writeHead(405).end()
     } catch (f) {
-      res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: false, fehler: f.message }))
+      if (res.headersSent) { res.end(); return }
+      res.writeHead(f.status || 400, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: false, fehler: f.message }))
     }
   })
 
@@ -215,11 +281,18 @@ export function erstelleServer({ gehirnFabrik, hefte = null, host = '127.0.0.1',
   }
 }
 
-function lies(req) {
+// Koerper lesen, hoechstens `max` Bytes; zu gross -> Fehler mit Status 413 (der Rest wird verworfen)
+function lies(req, max = 10_000) {
   return new Promise((f, w) => {
-    let t = ''
-    req.on('data', (c) => { t += c; if (t.length > 10_000) w(new Error('zu gross')) })
-    req.on('end', () => { try { f(t ? JSON.parse(t) : {}) } catch { w(new Error('kein JSON')) } })
+    const zuGross = () => Object.assign(new Error('zu gross'), { status: 413 })
+    if (Number(req.headers['content-length'] || 0) > max) { req.resume(); w(zuGross()); return }
+    const teile = []; let n = 0; let fertig = false
+    req.on('data', (c) => { if (fertig) return; n += c.length; if (n > max) { fertig = true; w(zuGross()); req.resume(); return } teile.push(c) })
+    req.on('end', () => {
+      if (fertig) return
+      const t = Buffer.concat(teile).toString('utf8')
+      try { f(t ? JSON.parse(t) : {}) } catch { w(new Error('kein JSON')) }
+    })
   })
 }
 
@@ -229,7 +302,7 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
   if (process.argv.includes('--skript')) {
     // Ohne KI und ohne Kosten: Skript-Gehirne, zum Entwickeln der Oberflaeche
     const { skriptGehirn } = await import('./tools/skriptgehirne.mjs')
-    const s = erstelleServer({ gehirnFabrik: (name, rolle, { zufall: z }) => skriptGehirn(name, rolle, z), pause: 900 })
+    const s = erstelleServer({ gehirnFabrik: (name, rolle, { zufall: z }) => skriptGehirn(name, rolle, z), pause: 900, figuren: figurenSpeicher() })
     console.log(`Nachsitzen (Skript-Modus, keine KI) laeuft auf http://localhost:${await s.starten()}`)
   } else {
   const deckel = deckelAusUmgebung()
@@ -237,11 +310,11 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
   console.log(`  Tagesdeckel: ${deckel} $ (NACHSITZEN_DECKEL)`)
   const anfrage = claudeAnfrage({ schluessel: apiSchluessel(), kosten, log: (m) => console.log(`  (${m})`) })
   let deckelGemeldet = false
-  const fabrik = (name, rolle, opts) => claudeGehirn(ladeFigur(name), rolle, { anfrage, ...opts, log: (m) => {
+  const fabrik = (name, rolle, opts) => claudeGehirn(opts.figur ?? ladeFigur(name), rolle, { anfrage, ...opts, log: (m) => {
     console.log(`  (${m})`)
     if (m.includes('Tagesdeckel') && !deckelGemeldet) { deckelGemeldet = true; s.melde('deckel', { text: 'Der Tagesdeckel für die KI-Aufrufe ist erreicht. Die Figuren schweigen ab jetzt, bis morgen (oder du erhöhst NACHSITZEN_DECKEL).' }) }
   } })
-  const s = erstelleServer({ gehirnFabrik: fabrik, hefte: hefteSpeicher() })
+  const s = erstelleServer({ gehirnFabrik: fabrik, hefte: hefteSpeicher(), figuren: figurenSpeicher() })
   const port = await s.starten()
   console.log(`Nachsitzen laeuft auf http://localhost:${port}`)
   const t = kosten.heute()

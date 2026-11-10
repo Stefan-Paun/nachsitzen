@@ -9,6 +9,9 @@ import { standardOrdner as datenOrdner } from './ordner.mjs'
 export const MAX_EINTRAEGE_IM_PROMPT = 5
 export const VERTRAUEN = { '-2': 'traue ich gar nicht', '-1': 'bin ich skeptisch', '0': 'weiß ich nicht', '1': 'traue ich eher', '2': 'vertraue ich' }
 
+// Datenordner des Spiels (Hefte, eigene Figuren, Kosten): eine Quelle in ./ordner.mjs
+export { datenOrdner }
+
 export function standardOrdner() {
   return path.join(datenOrdner(), 'hefte')
 }

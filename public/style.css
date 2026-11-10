@@ -152,3 +152,42 @@ body.daemmerung .lampe { transition: none; }
   .kopf { gap: 8px; padding: 10px 12px; flex-wrap: wrap; } .phase { font-size: 13px; }
   .schalter { font-size: 12px; padding: 4px 8px; }
 }
+
+/* --- Besetzung und Figuren-Editor ------------------------------------------------------ */
+.besetzung { border: 1px solid var(--linie); border-radius: 12px; padding: 10px 14px 14px; margin: 16px 0; }
+.besetzung legend { color: var(--gedaempft); font-size: 14px; padding: 0 6px; }
+.besetzungsliste { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 8px; }
+.start .besetzungsliste label { flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: 15px; color: var(--text); }
+.start .besetzungsliste input { font-size: 14px; padding: 0; accent-color: var(--lampe); }
+.besetzung .klein { margin-bottom: 10px; }
+.besetzung .klein.schlecht { color: var(--fehler); }
+.editor { width: 100%; max-width: 1100px; margin: 0 auto; padding: 16px; overflow-y: auto; }
+.editorkopf { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.editor h1 { font-size: 26px; margin: 0; }
+.editor h2 { font-size: 16px; margin: 0 0 8px; }
+.editorraster { display: grid; grid-template-columns: 200px minmax(280px, 1fr) 260px; gap: 20px; align-items: start; }
+.figurenliste ul { list-style: none; padding: 0; margin: 0 0 10px; }
+.figurenliste li button { width: 100%; text-align: left; font: inherit; padding: 6px 10px; margin-bottom: 4px; border-radius: 8px; border: 1px solid var(--linie); background: transparent; color: var(--text); cursor: pointer; }
+.figurenliste li button[aria-current="true"] { background: var(--wand); border-color: var(--lampe); }
+.figurenliste li.leer { color: var(--gedaempft); font-size: 14px; }
+.figurform { display: flex; flex-direction: column; gap: 10px; }
+.figurform label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--gedaempft); }
+.figurform input, .figurform textarea, .figurform select { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--linie); background: var(--wand); color: var(--text); }
+.figurform input[type="color"] { padding: 2px; height: 34px; width: 56px; }
+.figurform fieldset { border: 1px solid var(--linie); border-radius: 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+.figurform .beispiele { flex-direction: column; align-items: stretch; }
+.figurform legend { color: var(--gedaempft); font-size: 14px; }
+.figurform .invalid { border-color: var(--fehler); }
+.fehlertext { color: var(--fehler); font-size: 13px; min-height: 0; }
+.fehlertext:empty { display: none; }
+.zaehler { font-size: 12px; color: var(--gedaempft); text-align: right; }
+.meldung { font-size: 14px; color: var(--mint); min-height: 1.4em; }
+.meldung.schlecht { color: var(--fehler); }
+.karte-vorschau { background: var(--papier); color: var(--tinte); border-radius: 12px; padding: 14px; font-size: 14px; display: flex; flex-direction: column; gap: 8px; }
+.karte-vorschau h3 { margin: 0; font-size: 18px; }
+.karte-vorschau .kopfzeile { display: flex; align-items: center; gap: 10px; }
+.karte-vorschau .rolle { font-size: 12px; color: #55597a; }
+.karte-vorschau blockquote { margin: 0; padding-left: 10px; border-left: 3px solid var(--papier-dunkel); font-style: italic; }
+.karte-vorschau .geheim { background: var(--papier-dunkel); border-radius: 8px; padding: 6px 8px; }
+.karte-vorschau .leer { color: #77789a; }
+@media (max-width: 860px) { .editorraster { grid-template-columns: 1fr; } }
