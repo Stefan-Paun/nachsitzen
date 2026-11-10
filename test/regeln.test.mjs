@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { zufall } from '../spiel/zufall.mjs'
-import { verteileRollen, SCHATTEN, SCHLUESSEL, SCHUELER } from '../spiel/rollen.mjs'
+import { verteileRollen, SCHATTEN, SCHLUESSEL, SCHUELER, PETZE } from '../spiel/rollen.mjs'
 import { auswerten } from '../spiel/abstimmung.mjs'
 import * as P from '../spiel/partie.mjs'
 
@@ -14,12 +14,13 @@ test('Zufall ist mit gleichem Startwert reproduzierbar', () => {
   assert.deepEqual(zufall(7).mischen(NAMEN).sort(), [...NAMEN].sort())
 })
 
-test('Rollen: genau ein Schatten, ein Schluesseltraeger, Rest Schueler', () => {
+test('Rollen: genau ein Schatten, ein Schluesseltraeger, eine Petze, Rest Schueler', () => {
   for (let s = 0; s < 50; s++) {
     const r = Object.values(verteileRollen(NAMEN, zufall(s)))
     assert.equal(r.filter((x) => x === SCHATTEN).length, 1)
     assert.equal(r.filter((x) => x === SCHLUESSEL).length, 1)
-    assert.equal(r.filter((x) => x === SCHUELER).length, 4)
+    assert.equal(r.filter((x) => x === PETZE).length, 1)
+    assert.equal(r.filter((x) => x === SCHUELER).length, 3)
   }
   assert.throws(() => verteileRollen(['A', 'A', 'B', 'C'], zufall(1)), /eindeutig/)
   assert.throws(() => verteileRollen(['A', 'B', 'C'], zufall(1)), /Mindestens 4/)
@@ -47,6 +48,7 @@ function nachtSpielen(p, opfer, pruefziel) {
   p.lebende.forEach((n, i) => P.platzWaehlen(p, n, ORTE[i % ORTE.length]))
   P.schattenWaehlt(p, opfer ?? P.holbar(p).find((n) => n !== k) ?? P.holbar(p)[0])
   if (P.lebt(p, k)) P.schluesselPrueft(p, pruefziel ?? p.lebende.find((n) => n !== k))
+  if (P.petze(p) && P.lebt(p, P.petze(p))) P.petzePrueft(p, p.lebende.find((n) => n !== P.petze(p)))
   P.morgen(p)
 }
 function bisZurDiskussion(startwert = 3) {
@@ -82,6 +84,8 @@ test('Nacht: jeder braucht einen Platz, Schatten nicht sich selbst, Morgen brauc
   P.schattenWaehlt(p, NAMEN.find((n) => n !== s && n !== k))
   assert.throws(() => P.morgen(p), /noch nicht geprüft/)
   P.schluesselPrueft(p, NAMEN.find((n) => n !== k))
+  assert.throws(() => P.morgen(p), /Petze hat noch nicht gewählt/)
+  P.petzePrueft(p, NAMEN.find((n) => n !== P.petze(p)))
   assert.throws(() => P.morgen(p), /Ohne Platz/)
 })
 
@@ -197,6 +201,7 @@ test('Spur verwischen: einmal pro Partie, keine Richtung, kein Kreidestaub; am E
   assert.equal(p.verwischt, true); assert.equal(P.darfVerwischen(p), false)
   assert.equal(p.ereignisse.at(-1).verwischt, true)
   if (P.lebt(p, k)) P.schluesselPrueft(p, p.lebende.find((n) => n !== k))
+  if (P.petze(p) && P.lebt(p, P.petze(p))) P.petzePrueft(p, p.lebende.find((n) => n !== P.petze(p)))
   P.morgen(p)
   const funde = p.ereignisse.filter((e) => e.art === 'fund' && e.nacht === 1)
   assert.equal(funde.length, 1); assert.equal(funde[0].typ, 'spur'); assert.equal(funde[0].verwischt, true); assert.equal(funde[0].richtung, null)

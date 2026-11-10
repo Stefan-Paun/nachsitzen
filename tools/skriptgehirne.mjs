@@ -2,7 +2,7 @@
 // durch - fuer Regeltests, Siegquoten und die Simulation. Dieselbe Schnittstelle bekommt
 // das Claude-Gehirn (siehe spiel/schleife.mjs).
 
-import { SCHATTEN, SCHLUESSEL } from '../spiel/rollen.mjs'
+import { SCHATTEN, SCHLUESSEL, PETZE } from '../spiel/rollen.mjs'
 import { KLASSENBUCH, bei } from '../spiel/welt.mjs'
 
 // Wie oft hat jemand jemanden beschuldigt? (aus dem, was die Figur hoeren konnte)
@@ -18,8 +18,10 @@ function lauteste(sicht, kandidaten) {
   return [...kandidaten].sort((a, b) => (z[b] || 0) - (z[a] || 0))[0]
 }
 
-export function skriptGehirn(name, rolle, zufall) {
-  const geprueft = {}             // nur der Schluesseltraeger fuellt das
+// mitPetze: gibt es in dieser Partie eine Petze? (Nur dann darf sich der Schatten als Petze ausgeben.)
+export function skriptGehirn(name, rolle, zufall, { mitPetze = true } = {}) {
+  const geprueft = {}             // nur Schluesseltraeger und Petze fuellen das: Name -> ist Schatten
+  const gesehen = {}              // nur die Petze: Name -> Rolle, die sie erfahren hat
   let meinPlatz = null
   return {
     name,
@@ -34,9 +36,17 @@ export function skriptGehirn(name, rolle, zufall) {
         const offen = andere.filter((n) => !(n in geprueft))
         return { platz: meinPlatz, ziel: offen.length ? zufall.aus(offen) : zufall.aus(andere) }
       }
+      if (rolle === PETZE) {
+        // Verdaechtige zuerst: wer am meisten beschuldigt wurde, sonst irgendwer Ungeprueftes
+        const offen = andere.filter((n) => !(n in gesehen))
+        const b = beschuldigungen(sicht)
+        const reihe = [...offen].sort((x, y) => (b[y] || 0) - (b[x] || 0))
+        return { platz: meinPlatz, ziel: reihe.length ? ((b[reihe[0]] || 0) > 0 ? reihe[0] : zufall.aus(reihe)) : zufall.aus(andere) }
+      }
       return { platz: meinPlatz }
     },
     merkePruefung(ziel, istSchatten) { geprueft[ziel] = istSchatten },
+    merkePetze(ziel, gefundeneRolle) { gesehen[ziel] = gefundeneRolle; geprueft[ziel] = gefundeneRolle === SCHATTEN },
     untersuchen(sicht, lebende, { orte }) {
       if (zufall.zahl() < 0.3) return null
       // Lieber dort nachsehen, wo der letzte Fund hinzeigt, sonst irgendwo
@@ -48,7 +58,9 @@ export function skriptGehirn(name, rolle, zufall) {
     diskussion(sicht, lebende) {
       const andere = lebende.filter((n) => n !== name)
       const bekannt = Object.entries(geprueft).find(([n, s]) => s && lebende.includes(n))
-      if (bekannt) return { art: 'sagt', an: bekannt[0], text: `Ich habe nachts nachgesehen: ${bekannt[0]} ist der Schatten.` }
+      if (bekannt) return { art: 'sagt', an: bekannt[0], text: rolle === PETZE ? `Ich bin die Petze, ich habe ${bekannt[0]} nachts durchschaut: ${bekannt[0]} ist der Schatten.` : `Ich habe nachts nachgesehen: ${bekannt[0]} ist der Schatten.` }
+      // Der Schatten gibt sich manchmal als Petze aus und beschuldigt jemand anderen
+      if (rolle === SCHATTEN && mitPetze && andere.length && zufall.zahl() < 0.12) { const o = zufall.aus(andere); return { art: 'sagt', an: o, text: `Ich bin die Petze, ich habe ${o} nachts durchschaut: ${o} ist der Schatten.` } }
       if (zufall.zahl() < 0.4) return { art: 'schweigt' }
       if (meinPlatz && zufall.zahl() < 0.3) return { art: 'sagt', an: null, text: `Ich war ${bei(rolle === SCHATTEN ? 'Tür' : meinPlatz)}, die ganze Nacht.` }   // der Skript-Schatten luegt immer 'Tuer'
       const ziel = rolle === SCHATTEN ? zufall.aus(andere) : (Object.entries(beschuldigungen(sicht)).filter(([n]) => andere.includes(n)).sort((a, b) => b[1] - a[1])[0]?.[0] ?? zufall.aus(andere))

@@ -3,6 +3,9 @@
 // Ereignissen der letzten Nacht wird gesammelt, was sicher ist, und gegen die Behauptungen gehalten.
 
 import { ORT_NAMEN, KLASSENBUCH, bei } from './welt.mjs'
+import { SCHATTEN, SCHLUESSEL, PETZE } from './rollen.mjs'
+
+const ROLLENNAME = { [SCHATTEN]: 'der Schatten', [SCHLUESSEL]: 'der Schlüsselträger', [PETZE]: 'die Petze', schueler: 'ein normaler Schüler' }
 
 const RICHTUNG = { tuer: 'von der Türseite', fenster: 'von der Fensterseite', hier: 'von nebenan' }
 
@@ -20,6 +23,7 @@ export function wissenAus(ereignisse, ich) {
         w.zeilen.push(e.wer === ich ? e.text : `${e.wer}: ${e.text}`); break
       case 'schatten-waehlt': w.zeilen.push(`${e.wer === ich ? 'Du holst' : `${e.wer} holt`} ${e.ziel}.`); break
       case 'pruefung': w.zeilen.push(`${e.wer === ich ? 'Du prüfst' : `${e.wer} prüft`} ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN' : 'kein Schatten'}.`); break
+      case 'petze-prueft': w.zeilen.push(`${e.wer === ich ? 'Du erfährst' : `${e.wer} erfährt`} von ${e.ziel}: ${ROLLENNAME[e.rolle] ?? e.rolle}.`); break
       case 'verschwunden': w.opfer = e.name; if (e.ort) w.plaetze[e.name] = e.ort; break
       case 'fund':
         w.funde.push(e.text)

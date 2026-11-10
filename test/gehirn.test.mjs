@@ -54,7 +54,7 @@ test('Verlauf als Text: private Zeilen nur in der eigenen Sicht, "Du" statt Name
   const s = P.schatten(p), k = P.schluesseltraeger(p)
   const opfer = NAMEN.find((n) => n !== s && n !== k)
   p.lebende.forEach((n, i) => P.platzWaehlen(p, n, P.ORT_NAMEN[i % P.ORT_NAMEN.length]))
-  P.schattenWaehlt(p, opfer); P.schluesselPrueft(p, s); P.morgen(p)
+  P.schattenWaehlt(p, opfer); P.schluesselPrueft(p, s); P.petzePrueft(p, s); P.morgen(p)
   const tS = verlaufAlsText(P.verlaufFuer(p, s), s), tK = verlaufAlsText(P.verlaufFuer(p, k), k), tO = verlaufAlsText(P.verlaufFuer(p, 'Mira'), 'Mira')
   assert.ok(tS.includes(`Du schleichst zu ${opfer}`)); assert.ok(!tK.includes('Du schleichst zu'))
   assert.ok(tK.includes('Du stellst dich') && tK.includes('was du mitbekommen hast') && tK.includes('Fund für alle sichtbar'))

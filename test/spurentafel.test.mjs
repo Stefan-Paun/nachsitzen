@@ -15,7 +15,7 @@ function nachNacht(startwert = 3) {
   const s = P.schatten(p), k = P.schluesseltraeger(p)
   const opfer = NAMEN.find((n) => n !== s && n !== k)
   for (const n of NAMEN) P.platzWaehlen(p, n, P.ORT_NAMEN[NAMEN.indexOf(n) % 4])
-  P.schattenWaehlt(p, opfer); P.schluesselPrueft(p, s); P.morgen(p)
+  P.schattenWaehlt(p, opfer); P.schluesselPrueft(p, s); P.petzePrueft(p, s); P.morgen(p)
   return { p, s, k, opfer }
 }
 

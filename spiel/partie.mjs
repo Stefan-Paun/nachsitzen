@@ -3,7 +3,7 @@
 // den Gespraechsverlauf jeder einzelnen Figur (jede hat ihren eigenen Kontext).
 // Seit M2.5 gibt es eine echte Nacht: Plaetze, Beobachtungen, Funde, Untersuchungen, Tagesereignisse.
 
-import { verteileRollen, SCHATTEN, SCHLUESSEL } from './rollen.mjs'
+import { verteileRollen, SCHATTEN, SCHLUESSEL, PETZE } from './rollen.mjs'
 import { auswerten } from './abstimmung.mjs'
 import { ORT_NAMEN, KLASSENBUCH, istOrt, beobachtungen, funde, tagesereignis, untersuchung, opferSatz } from './welt.mjs'
 
@@ -12,8 +12,8 @@ export const SPRECHRUNDEN = 2        // Diskussionsrunden pro Tag (Hausmeister: 
 export const MAX_NAECHTE = 10        // Notbremse gegen Endlosschleifen
 export const MAX_UNTERSUCHUNGEN = 3  // pro Figur und Partie (sonst ist die Wahrheit zu billig)
 
-export function neuePartie(namen, zufall, { spieler = null } = {}) {
-  const rollen = verteileRollen(namen, zufall)
+export function neuePartie(namen, zufall, { spieler = null, petze = null } = {}) {
+  const rollen = verteileRollen(namen, zufall, { petze })
   const p = {
     namen: [...namen],
     spieler,                          // Name der menschlichen Figur (oder null = nur KI)
@@ -28,6 +28,7 @@ export function neuePartie(namen, zufall, { spieler = null } = {}) {
     plaetze: {},                      // Nacht: name -> Ort
     nachtwahl: null,                  // Ziel des Schattens in dieser Nacht
     pruefung: null,                   // { wer, ziel, rolle } des Schluesseltraegers
+    petzeWahl: null,                  // { wer, ziel, rolle } der Petze in dieser Nacht (privat)
     letzteNacht: null,                // { plaetze, schatten, opfer } fuer Untersuchungen am Tag
     naechte: [],                      // alle Naechte, fuer die Wahrheit am Ende
     verwischt: false,                 // hat der Schatten heute Nacht seine Spur verwischt?
@@ -54,6 +55,7 @@ function melde(p, art, daten, sichtbar = null) {
 
 export function schatten(p) { return p.namen.find((n) => p.rollen[n] === SCHATTEN) }
 export function schluesseltraeger(p) { return p.namen.find((n) => p.rollen[n] === SCHLUESSEL) }
+export function petze(p) { return p.namen.find((n) => p.rollen[n] === PETZE) }   // undefined ohne Petze
 export function lebt(p, name) { return p.lebende.includes(name) }
 
 // Verlauf aus Sicht einer Figur: nur, was sie sehen durfte.
@@ -93,6 +95,7 @@ function nachtBeginnen(p) {
   p.plaetze = {}
   p.nachtwahl = null
   p.pruefung = null
+  p.petzeWahl = null
   p.stimmen = {}
   p.untersucht = []
   p.verwischt = false
@@ -144,10 +147,25 @@ export function schluesselPrueft(p, ziel) {
   return rolle === SCHATTEN
 }
 
+// Die Petze erfaehrt die Rolle einer lebenden Figur. Das Ereignis sieht nur sie selbst.
+export function petzePrueft(p, ziel) {
+  pruefePhase(p, 'nacht')
+  const x = petze(p)
+  if (!x) throw new Error('Es gibt keine Petze')
+  if (!lebt(p, x)) throw new Error('Die Petze ist nicht mehr im Spiel')
+  if (p.petzeWahl) throw new Error('Die Petze hat heute schon gewählt')
+  if (ziel === x || !lebt(p, ziel)) throw new Error(`Ungültiges Ziel: ${ziel}`)
+  const rolle = p.rollen[ziel]
+  p.petzeWahl = { wer: x, ziel, rolle }
+  melde(p, 'petze-prueft', { wer: x, ziel, rolle }, [x])
+  return rolle
+}
+
 export function morgen(p) {
   pruefePhase(p, 'nacht')
   if (!p.nachtwahl) throw new Error('Der Schatten hat noch nicht gewählt')
   if (lebt(p, schluesseltraeger(p)) && !p.pruefung) throw new Error('Der Schlüsselträger hat noch nicht geprüft')
+  if (petze(p) && lebt(p, petze(p)) && !p.petzeWahl) throw new Error('Die Petze hat noch nicht gewählt')
   const ohnePlatz = p.lebende.filter((n) => !p.plaetze[n])
   if (ohnePlatz.length) throw new Error(`Ohne Platz: ${ohnePlatz.join(', ')}`)
   const s = schatten(p), opfer = p.nachtwahl

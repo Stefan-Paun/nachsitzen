@@ -6,7 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { SCHATTEN, SCHLUESSEL } from './rollen.mjs'
+import { SCHATTEN, SCHLUESSEL, PETZE } from './rollen.mjs'
 import { ORT_NAMEN, KLASSENBUCH, bei, behauptungAus, VORTEILE } from './welt.mjs'
 import { eintragBauen } from './hefte.mjs'
 
@@ -42,6 +42,8 @@ export function systemPrompt(figur, rolle, mitspieler, spieler, heft = '') {
   return SYSTEM_VORLAGE.replace(/\{\{(\w+)\}\}/g, (_, k) => ersetze[k] ?? '')
 }
 
+// Rollenname fuer Verlaufstexte (Rolle wird nur gezeigt, wenn sie bekannt ist: Petze-Ergebnis, Keller)
+export const ROLLENNAME = { [SCHATTEN]: 'der Schatten', [SCHLUESSEL]: 'der Schlüsselträger', [PETZE]: 'die Petze', schueler: 'ein normaler Schüler' }
 const fremd = (wer, ich) => !!wer && wer !== ich
 
 // Ereignisse aus Sicht der Figur als lesbarer Verlauf.
@@ -56,6 +58,7 @@ export function verlaufAlsText(ereignisse, ich) {
       case 'schatten-waehlt': zeilen.push(`[Nacht ${e.nacht}] ${fremd(e.wer, ich) ? `${e.wer} schleicht` : 'Du schleichst'} zu ${e.ziel} und zurück.${e.verwischt ? (fremd(e.wer, ich) ? ' Die Tinte wird mit dem Ärmel verwischt.' : ' Du hast dir Zeit genommen und die Tinte mit dem Ärmel verwischt.') : ''}`); break
       case 'wahrheit': break   // nur fuer die Anzeige am Ende
       case 'pruefung': zeilen.push(`[Nacht ${e.nacht}] ${fremd(e.wer, ich) ? `${e.wer} prüft` : 'Du prüfst'} ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`); break
+      case 'petze-prueft': zeilen.push(`[Nacht ${e.nacht}] ${fremd(e.wer, ich) ? `${e.wer} erfährt` : 'Du erfährst'} von ${e.ziel}: ${ROLLENNAME[e.rolle] ?? e.rolle}.`); break
       case 'beobachtung': zeilen.push(`[Nacht ${e.nacht}, was ${fremd(e.wer, ich) ? `${e.wer} mitbekommen hat` : 'du mitbekommen hast'}] ${e.text}`); break
       case 'beweis': zeilen.push(`[BEWEIS, vom Spiel geprüft, wahr] ${e.von === ich ? 'Du zeigst' : `${e.von} zeigt`} das Ergebnis der Untersuchung ${e.ort === KLASSENBUCH ? 'im Klassenbuch' : bei(e.ort)}: ${e.text}`); break
       case 'zettelwahl': zeilen.push(`[Zettel aufgedeckt] ${Object.entries(e.stimmen).map(([v, f]) => `${v === ich ? 'du' : v} → ${f ?? 'niemand'}`).join(', ')}`); break
@@ -70,7 +73,7 @@ export function verlaufAlsText(ereignisse, ich) {
       case 'schweigt': zeilen.push(`${e.von === ich ? 'Du schweigst' : `${e.von} schweigt`}.`); break
       case 'abstimmung': zeilen.push(`[Abstimmung] ${e.text}`); break
       case 'stimme': if (e.von === ich) zeilen.push(`Du schreibst ${e.fuer ? e.fuer : 'niemanden'} auf deinen Zettel.`); else zeilen.push(`${e.von} stimmt ${e.fuer ? `für ${e.fuer}` : 'nicht ab'} (offen).`); break
-      case 'eingesperrt': zeilen.push(`[Ergebnis] ${e.name} kommt in den Keller. ${e.name} war ${e.rolle === SCHATTEN ? 'der Schatten' : e.rolle === SCHLUESSEL ? 'der Schlüsselträger' : 'ein normaler Schüler'}.`); break
+      case 'eingesperrt': zeilen.push(`[Ergebnis] ${e.name} kommt in den Keller. ${e.name} war ${ROLLENNAME[e.rolle] ?? 'ein normaler Schüler'}.`); break
       case 'niemand': zeilen.push(`[Ergebnis] Niemand kommt in den Keller${e.gleichstand ? ' (Gleichstand)' : ''}.`); break
       default: break   // 'rolle' steht im Systemprompt, 'ende' braucht keine Entscheidung mehr
     }
@@ -100,6 +103,7 @@ export function werkzeuge(phase, rolle, andere, { verwischen = false } = {}) {
         return [{ name: 'holen', description: 'Deinen Platz wählen und diese Person heute Nacht holen: Sie verschwindet. Dein Weg hinterlässt Spuren.', strict: true, input_schema: objekt(felder) }]
       }
       if (rolle === SCHLUESSEL) return [{ name: 'pruefen', description: 'Deinen Platz wählen und diese Person heute Nacht prüfen: Du erfährst, ob sie der Schatten ist.', strict: true, input_schema: objekt({ platz: platzSchema, ziel: namenSchema(andere, 'Wen du prüfst.') }) }]
+      if (rolle === PETZE) return [{ name: 'erfragen', description: 'Deinen Platz wählen und von dieser Person heute Nacht die Rolle erfahren: Du siehst sicher, was sie ist (Schatten, Schlüsselträger oder Schüler).', strict: true, input_schema: objekt({ platz: platzSchema, ziel: namenSchema(andere, 'Wessen Rolle du erfährst.') }) }]
       return [{ name: 'verstecken', description: 'Deinen Platz für die Nacht wählen.', strict: true, input_schema: objekt({ platz: platzSchema }) }]
     case 'abstimmung': return [{ name: 'abstimmen', description: 'Dein geheimer Zettel: wer in den Keller soll, oder "niemand". Niemand sieht ihn vor der Auszählung.', strict: true, input_schema: objekt({ fuer: namenSchema([...andere, 'niemand'], 'Dein Kandidat oder niemand.') }) }]
     default: return []
@@ -139,6 +143,7 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
       case 'verstecken': return ORT_NAMEN.includes(e.platz) ? { platz: e.platz } : verwerfe(`Platz ${e.platz} ungültig`)
       case 'holen':
       case 'pruefen':
+      case 'erfragen':
         if (!ORT_NAMEN.includes(e.platz)) return verwerfe(`Platz ${e.platz} ungültig`)
         return andere.includes(e.ziel) ? { platz: e.platz, ziel: e.ziel, verwischen: w.name === 'holen' && e.verwischen === true } : verwerfe(`Ziel ${e.ziel} ungültig`)
       case 'abstimmen': return { art: 'stimme', fuer: andere.includes(e.fuer) ? e.fuer : null }
@@ -150,7 +155,7 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
     switch (phase) {
       case 'abend': return { art: 'sagt', text: 'Ist hier noch jemand wach?', an: null }
       case 'diskussion': return { art: 'schweigt' }
-      case 'nacht': return { platz: zufall.aus(ORT_NAMEN), ziel: rolle === SCHATTEN || rolle === SCHLUESSEL ? zufall.aus(andere) : undefined }
+      case 'nacht': return { platz: zufall.aus(ORT_NAMEN), ziel: rolle === SCHATTEN || rolle === SCHLUESSEL || rolle === PETZE ? zufall.aus(andere) : undefined }
       case 'abstimmung': return { art: 'stimme', fuer: null }
       default: return { art: 'schweigt' }
     }
@@ -203,6 +208,7 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
     untersuchen, zeigen,
     diskussion: (sicht, lebende) => entscheide('diskussion', sicht, lebende),
     abstimmung: (sicht, lebende) => entscheide('abstimmung', sicht, lebende),
-    merkePruefung() {},   // steht im Verlauf (Ereignis 'pruefung'), kein extra Gedaechtnis noetig
+    merkePruefung() {},
+    merkePetze() {},   // steht im Verlauf (Ereignis 'pruefung'), kein extra Gedaechtnis noetig
   }
 }
