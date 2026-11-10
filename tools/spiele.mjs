@@ -13,7 +13,7 @@ import { claudeGehirn, ladeFigur, verlaufAlsText } from '../spiel/gehirn.mjs'
 import { claudeAnfrage } from '../spiel/claude.mjs'
 import { apiSchluessel } from '../spiel/schluessel.mjs'
 import { kostenRechner } from '../spiel/kosten.mjs'
-import { SCHATTEN, SCHLUESSEL } from '../spiel/rollen.mjs'
+import { SCHATTEN, SCHLUESSEL, PETZE } from '../spiel/rollen.mjs'
 import { hefteSpeicher } from '../spiel/hefte.mjs'
 import { spurentafelText } from '../spiel/spurentafel.mjs'
 
@@ -30,7 +30,7 @@ const hefte = hefteSpeicher()
 const anfrage = claudeAnfrage({ schluessel: apiSchluessel(), kosten, log: (m) => console.log(`  (${m})`) })
 const p = P.neuePartie(namen, z, { spieler })
 
-const ROLLE = { [SCHATTEN]: 'der Schatten', [SCHLUESSEL]: 'der Schlüsselträger', schueler: 'ein normaler Schüler' }
+const ROLLE = { [SCHATTEN]: 'der Schatten', [SCHLUESSEL]: 'der Schlüsselträger', [PETZE]: 'die Petze', schueler: 'ein normaler Schüler' }
 
 // Mensch-Gehirn: liest aus dem Terminal
 function menschGehirn(name) {
@@ -52,12 +52,12 @@ function menschGehirn(name) {
     name,
     abend: async () => { const a = await rede(); return a.art === 'schweigt' ? { art: 'sagt', text: '…', an: null } : a },
     diskussion: rede,
-    nacht: async (sicht, lebende, { orte }) => {
+    nacht: async (sicht, lebende, { orte, petzeAktiv }) => {
       const andere = lebende.filter((n) => n !== name)
       const r = p.rollen[name]
       const platz = await frageName('Wo stellst du dich hin?', orte)
-      if (r !== SCHATTEN && r !== SCHLUESSEL) return { platz }
-      const ziel = await frageName(r === SCHATTEN ? 'Wen holst du heute Nacht?' : 'Wen prüfst du heute Nacht?', andere)
+      if (r !== SCHATTEN && r !== SCHLUESSEL && !(r === PETZE && petzeAktiv)) return { platz }
+      const ziel = await frageName(r === SCHATTEN ? 'Wen holst du heute Nacht?' : r === PETZE ? 'Von wem willst du die Rolle erfahren?' : 'Wen prüfst du heute Nacht?', andere)
       return { platz, ziel }
     },
     untersuchen: async (sicht, lebende, { orte }) => {
@@ -65,6 +65,7 @@ function menschGehirn(name) {
       return ort ? { ort } : null
     },
     abstimmung: async (sicht, lebende) => ({ fuer: await frageName('Wer soll in den Keller?', lebende.filter((n) => n !== name), true), begruendung: '' }),
+    merkePetze(ziel, rolle) { console.log(`  → Du hast ${ziel} durchschaut: ${{ schatten: 'DER SCHATTEN', schluessel: 'der Schlüsselträger', petze: 'die Petze', schueler: 'ein normaler Schüler' }[rolle]}.`) },
     merkePruefung(ziel, ist) { console.log(`  → Du hast ${ziel} geprüft: ${ist ? 'DER SCHATTEN.' : 'kein Schatten.'}`) },
   }
 }

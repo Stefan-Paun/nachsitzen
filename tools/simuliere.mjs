@@ -10,17 +10,19 @@ import { skriptGehirn } from './skriptgehirne.mjs'
 
 export const FIGUREN = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora', 'Sam', 'Stefan']
 
-export async function spielePartie(startwert, namen = FIGUREN) {
+// petze: null = Standard (ab PETZE_AB Figuren), true/false erzwingt die Rolle an/aus
+export async function spielePartie(startwert, namen = FIGUREN, { petze = null, petzeJede = P.PETZE_JEDE } = {}) {
   const z = zufall(startwert)
-  const p = P.neuePartie(namen, z)
-  const gehirne = Object.fromEntries(namen.map((n) => [n, skriptGehirn(n, p.rollen[n], z)]))
+  const p = P.neuePartie(namen, z, { petze, petzeJede })
+  const mitPetze = !!P.petze(p)
+  const gehirne = Object.fromEntries(namen.map((n) => [n, skriptGehirn(n, p.rollen[n], z, { mitPetze })]))
   return spieleBisZumEnde(p, gehirne, { zufall: z })
 }
 
-export async function statistik(anzahl = 100, startwert = 1) {
+export async function statistik(anzahl = 100, startwert = 1, namen = FIGUREN, optionen = {}) {
   const st = { partien: anzahl, schueler: 0, schatten: 0, naechte: 0, stefanSchatten: 0, stefanSchluessel: 0, laengste: 0 }
   for (let i = 0; i < anzahl; i++) {
-    const p = await spielePartie(startwert + i)
+    const p = await spielePartie(startwert + i, namen, optionen)
     st[p.sieger] += 1
     st.naechte += p.nacht
     st.laengste = Math.max(st.laengste, p.nacht)

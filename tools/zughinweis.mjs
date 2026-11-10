@@ -4,7 +4,7 @@
 export function hinweisFuer(w) {
   if (!w) return '--- Die anderen sind dran. Nochmal aufrufen.'
   if (w.art === 'sagen') return `--- DU BIST DRAN: --sagen "..." [--an ${w.andere.join('|')}]${w.pflicht ? ' (Pflicht)' : ' oder --schweigen'}`
-  if (w.art === 'nacht') return `--- NACHT: --platz ${w.orte.join('|')}${w.aufgabe !== 'verstecken' ? ` --ziel ${w.optionen.join('|')}  (${w.aufgabe === 'holen' ? 'Pflicht: wen du holst' : 'Pflicht: wen du prüfst'})` : ''}${w.verwischen ? ' [--verwischen: einmalig die Spur verwischen]' : ''}`
+  if (w.art === 'nacht') return `--- NACHT: --platz ${w.orte.join('|')}${w.aufgabe !== 'verstecken' ? ` --ziel ${w.optionen.join('|')}  (${w.aufgabe === 'holen' ? 'Pflicht: wen du holst' : w.aufgabe === 'erfragen' ? 'Pflicht: von wem du die Rolle erfahren willst' : 'Pflicht: wen du prüfst'})` : ''}${w.verwischen ? ' [--verwischen: einmalig die Spur verwischen]' : ''}`
   if (w.art === 'untersuchen') return `--- UNTERSUCHEN (noch ${w.uebrig ?? '?'}× in dieser Partie): --untersuchen ${w.orte.join('|')}|nichts`
   if (w.art === 'zeigen') return `--- VORZEIGEN? Dein Ergebnis: „${w.ergebnis}“ · --zeigen ja|nein (vorgezeigt = für alle bewiesen)`
   if (w.art === 'stimme') return `--- ABSTIMMUNG (geheim): --stimme ${w.optionen.join('|')}|niemand`

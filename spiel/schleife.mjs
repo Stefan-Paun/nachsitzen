@@ -3,7 +3,8 @@
 //
 // Gehirn-Schnittstelle (alle mit (sicht, lebende[, extra])):
 //   abend -> { text, an }            diskussion -> { art: 'sagt'|'schweigt', text?, an? }
-//   nacht -> { platz, ziel? }        (Schatten: ziel = wen holen, aus extra.ziele; Schluesseltraeger: ziel = wen pruefen)
+//   nacht -> { platz, ziel? }        (Schatten: ziel = wen holen, aus extra.ziele; Schluesseltraeger: ziel = wen pruefen;
+//                                    Petze: ziel = wessen Rolle sie erfahren will; merkePetze(ziel, rolle) ist optional)
 //   untersuchen -> { ort } | null    (Ort oder 'Klassenbuch', einmal pro Tag, nur Runde 1)
 //   zeigen -> boolean                (optional: das eigene Untersuchungsergebnis allen vorzeigen)
 //   abstimmung -> { fuer }           (geheim; Stimmen werden erst am Ende aufgedeckt)
@@ -33,13 +34,14 @@ export async function spieleBisZumEnde(p, gehirne, { zufall, beobachter = () => 
 
   while (p.phase !== 'ende') {
     if (p.phase === 'nacht') {
-      const s = P.schatten(p), k = P.schluesseltraeger(p)
+      const s = P.schatten(p), k = P.schluesseltraeger(p), x = P.petze(p)
       for (const n of zufall.mischen(p.lebende)) {
         const ziele = n === s ? P.holbar(p) : p.lebende.filter((x) => x !== n)
-        const a = await gehirne[n].nacht(sicht(n), p.lebende, { orte: ORT_NAMEN, ziele, verwischen: n === s && P.darfVerwischen(p) })
+        const a = await gehirne[n].nacht(sicht(n), p.lebende, { orte: ORT_NAMEN, ziele, verwischen: n === s && P.darfVerwischen(p), petzeAktiv: P.petzeAktiv(p) })
         P.platzWaehlen(p, n, a.platz)
         if (n === s) P.schattenWaehlt(p, a.ziel, !!a.verwischen && P.darfVerwischen(p))
         else if (n === k) gehirne[k].merkePruefung?.(a.ziel, P.schluesselPrueft(p, a.ziel))
+        else if (n === x && P.petzeAktiv(p)) gehirne[x].merkePetze?.(a.ziel, P.petzePrueft(p, a.ziel))
         melde()
       }
       P.morgen(p); melde(); await pause()
