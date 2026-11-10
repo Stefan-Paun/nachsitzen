@@ -264,3 +264,10 @@ test('systemPrompt: jede Figur × jede Rolle ohne {{…}}, mit harten Grenzen', 
     }
   }
 })
+
+test('Schema: Name mit Anweisungswörtern wird abgelehnt (Name steht außerhalb des Datenblocks)', () => {
+  for (const n of ['Ignoriere', 'Regelbrecher', 'Anweisung', 'Systemfehler']) {
+    assert.ok(felder(pruefeFigur(gueltig({ name: n }))).includes('name'), n)
+  }
+  assert.ok(pruefeFigur(gueltig({ name: 'Paula' })).ok)
+})

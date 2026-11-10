@@ -66,6 +66,7 @@ export function pruefeFigur(roh, { eingebaut = false } = {}) {
   const name = text('name', { pflicht: true })
   if (name && !fehler.some((x) => x.feld === 'name')) {
     if (!NAME_MUSTER.test(name)) f('name', 'Nur Buchstaben, Ziffern, Leerzeichen, Apostroph und Bindestrich; beginnt mit einem Buchstaben')
+    else if (!eingebaut && /ignorier|regel|anweisung|system|prompt|befehl/i.test(name)) f('name', 'Der Name darf kein Spielregel- oder Anweisungswort enthalten')
     else if (!eingebaut && (RESERVIERT.some((r) => r.toLowerCase() === name.toLowerCase()) || RESERVIERTE_KENNUNGEN.has(kennung(name)))) f('name', `„${name}“ ist im Spiel schon belegt`)
     else if (!kennung(name)) f('name', 'Der Name braucht mindestens einen Buchstaben')
   }
