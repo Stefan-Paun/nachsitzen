@@ -9,8 +9,13 @@ import os from 'node:os'
 export const MAX_EINTRAEGE_IM_PROMPT = 5
 export const VERTRAUEN = { '-2': 'traue ich gar nicht', '-1': 'bin ich skeptisch', '0': 'weiß ich nicht', '1': 'traue ich eher', '2': 'vertraue ich' }
 
+// Datenordner des Spiels (Hefte, eigene Figuren): XDG_DATA_HOME oder ~/.local/share, darin nachsitzen/
+export function datenOrdner() {
+  return path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'), 'nachsitzen')
+}
+
 export function standardOrdner() {
-  return path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'), 'nachsitzen', 'hefte')
+  return path.join(datenOrdner(), 'hefte')
 }
 
 export function hefteSpeicher({ ordner = standardOrdner() } = {}) {
