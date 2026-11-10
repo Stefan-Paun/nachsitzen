@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { zufall } from '../spiel/zufall.mjs'
 import * as P from '../spiel/partie.mjs'
-import { claudeGehirn, ladeFigur, systemPrompt, werkzeuge, verlaufAlsText } from '../spiel/gehirn.mjs'
+import { claudeGehirn, pruefeSprechen, ladeFigur, systemPrompt, werkzeuge, verlaufAlsText } from '../spiel/gehirn.mjs'
 import { SCHATTEN, SCHLUESSEL, SCHUELER } from '../spiel/rollen.mjs'
 
 const NAMEN = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora', 'Stefan']
@@ -142,4 +142,51 @@ test('Claude-Gehirn: echte Nacht-Antwort wird zu Platz und Ziel; Untersuchen bra
   const belegt = [...sicht, { art: 'untersucht', nacht: 1, von: 'Sam', ort: 'Tafel' }]
   for (let i = 0; i < 40; i++) { const u = g.untersuchen(belegt, NAMEN, { orte: [...P.ORT_NAMEN, 'Klassenbuch'] }); if (u) assert.notEqual(u.ort, 'Tafel', 'schaut nicht dort nach, wo heute schon jemand war') }
   assert.equal(aufrufe, 1)
+})
+
+const sprich = (text) => ({ werkzeug: { name: 'sprechen', eingabe: { text, an: null } } })
+
+test('Waechter: pruefeSprechen kuerzt, erkennt Meta-Woerter und Wiederholung', () => {
+  assert.deepEqual(pruefeSprechen('Eins. Zwei! Drei? Vier.', {}), { text: 'Eins. Zwei!' })
+  assert.ok(pruefeSprechen('Als KI-Modell kann ich das nicht.', {}).verwerfen)
+  assert.ok(pruefeSprechen('Das ist ein Prompt.', {}).verwerfen)
+  assert.equal(pruefeSprechen('Ich mag Kino.', {}).verwerfen, undefined, 'KI nur als ganzes Wort')
+  assert.ok(pruefeSprechen('Wer war da?', { eigeneLetzte: 'Wer war da?' }).verwerfen)
+  assert.deepEqual(pruefeSprechen('Wer war da?', { eigeneLetzte: 'Anders.' }), { text: 'Wer war da?' })
+})
+
+test('Claude-Gehirn: Rollenbruch -> eine Nachfrage mit Zusatz, bei erneutem Verstoss Schweigen', async () => {
+  const log = []
+  const { aufrufe, anfrage } = fakeAnfrage([sprich('Als KI-Modell habe ich keine Meinung.'), sprich('Ich bin ein Sprachmodell.')])
+  const g = claudeGehirn(ladeFigur('Lea'), SCHUELER, { anfrage, mitspieler: NAMEN, zufall: zufall(1), log: (m) => log.push(m) })
+  assert.deepEqual(await g.diskussion([], NAMEN), { art: 'schweigt' })
+  assert.equal(aufrufe.length, 2)
+  assert.ok(!aufrufe[0].nachricht.includes('Bleib in der Rolle'))
+  assert.ok(aufrufe[1].nachricht.includes('Bleib in der Rolle, höchstens zwei Sätze, nichts wiederholen'))
+  assert.ok(log.length >= 1)
+  // Zweiter Versuch ok: dessen Text zaehlt
+  const f2 = fakeAnfrage([sprich('Ich bin ein Prompt.'), sprich('Wer stand am Fenster?')])
+  const g2 = claudeGehirn(ladeFigur('Lea'), SCHUELER, { anfrage: f2.anfrage, mitspieler: NAMEN, zufall: zufall(1) })
+  assert.equal((await g2.diskussion([], NAMEN)).text, 'Wer stand am Fenster?')
+})
+
+test('Claude-Gehirn: vier Saetze werden auf zwei gekuerzt, normale Antwort kostet einen Aufruf', async () => {
+  const { aufrufe, anfrage } = fakeAnfrage([sprich('Eins. Zwei. Drei. Vier.'), sprich('Ich war am Fenster.')])
+  const g = claudeGehirn(ladeFigur('Lea'), SCHUELER, { anfrage, mitspieler: NAMEN, zufall: zufall(1) })
+  assert.equal((await g.diskussion([], NAMEN)).text, 'Eins. Zwei.')
+  assert.equal(aufrufe.length, 1)
+  assert.equal((await g.diskussion([], NAMEN)).text, 'Ich war am Fenster.')
+  assert.equal(aufrufe.length, 2)
+})
+
+test('Claude-Gehirn: woertliche Wiederholung der eigenen letzten Aeusserung wird erkannt', async () => {
+  const { aufrufe, anfrage } = fakeAnfrage([sprich('Das war Tarik.'), sprich('Das war Tarik.'), sprich('Ich bleibe dabei, Tarik.')])
+  const g = claudeGehirn(ladeFigur('Lea'), SCHUELER, { anfrage, mitspieler: NAMEN, zufall: zufall(1) })
+  assert.equal((await g.diskussion([], NAMEN)).text, 'Das war Tarik.')
+  assert.equal((await g.diskussion([], NAMEN)).text, 'Ich bleibe dabei, Tarik.')
+  assert.equal(aufrufe.length, 3)
+  const sicht = [{ art: 'sagt', von: 'Lea', text: 'Nochmal.' }]
+  const f2 = fakeAnfrage([sprich('Nochmal.'), sprich('Nochmal.')])
+  const g2 = claudeGehirn(ladeFigur('Lea'), SCHUELER, { anfrage: f2.anfrage, mitspieler: NAMEN, zufall: zufall(1) })
+  assert.deepEqual(await g2.diskussion(sicht, NAMEN), { art: 'schweigt' })
 })
