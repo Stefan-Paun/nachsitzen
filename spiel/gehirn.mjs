@@ -22,6 +22,22 @@ export function satzende(text, max) {
   return ende > max / 3 ? kurz.slice(0, ende + 1) : kurz
 }
 
+// Billiger Waechter fuer Gesprochenes (kein zweiter Aufruf): hoechstens zwei Saetze,
+// keine Meta-Woerter (Rollenbruch), keine woertliche Wiederholung der eigenen letzten Aeusserung.
+// Ergebnis: { text } (ggf. gekuerzt) oder { verwerfen: grund }.
+const META = /\b(KI|AI|Sprachmodell|Prompt|Claude|Anthropic|Werkzeug|Spielleiter)\b/
+export function pruefeSprechen(text, { eigeneLetzte = null } = {}) {
+  const roh = String(text ?? '').trim()
+  if (!roh) return { text: '' }
+  const meta = roh.match(META)
+  if (meta) return { verwerfen: `Rollenbruch („${meta[1]}“)` }
+  if (eigeneLetzte && roh === String(eigeneLetzte).trim()) return { verwerfen: 'Wiederholung' }
+  const saetze = roh.split(/(?<=[.!?…])\s+/)
+  return { text: satzende(saetze.slice(0, 2).join(' '), 400) }
+}
+
+const ZUSATZ = 'Bleib in der Rolle, höchstens zwei Sätze, nichts wiederholen.'
+
 export function ladeFigur(name) {
   return JSON.parse(fs.readFileSync(path.join(HIER, '..', 'figuren', `${name.toLowerCase()}.json`), 'utf8'))
 }
@@ -119,10 +135,12 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
   const system = systemPrompt(figur, rolle, mitspieler, spieler, heft)
   const name = figur.name
 
-  async function entscheide(phase, sicht, lebende, extra = {}) {
+  let letzte = null   // eigene letzte Aeusserung (falls sie nicht im Verlauf steht)
+
+  async function entscheide(phase, sicht, lebende, extra = {}, zusatz = '') {
     const andere = phase === 'nacht' && extra.ziele ? extra.ziele : lebende.filter((n) => n !== name)
     const tools = werkzeuge(phase, rolle, andere, { verwischen: !!extra.verwischen })
-    const nachricht = `Was du bisher mitbekommen hast:\n${verlaufAlsText(sicht, name)}\n\nNoch im Raum: ${lebende.join(', ')}.\n${AUFGABE[phase]}`
+    const nachricht = `Was du bisher mitbekommen hast:\n${verlaufAlsText(sicht, name)}\n\nNoch im Raum: ${lebende.join(', ')}.\n${AUFGABE[phase]}${zusatz ? `\n${zusatz}` : ''}`
     let erg
     try { erg = await anfrage({ system, nachricht, tools }) } catch (f) { erg = { werkzeug: null, grund: f.message } }
     const verwerfe = (grund) => { log(`${name}: ${grund}, Rückfall`); return rueckfall(phase, andere) }
@@ -131,8 +149,15 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
     const e = w.eingabe
     switch (w.name) {
       case 'sprechen': {
-        const text = satzende(String(e.text || '').trim(), 400)
+        const eigene = [...sicht].reverse().find((x) => x.art === 'sagt' && x.von === name)?.text ?? letzte
+        const pruef = pruefeSprechen(e.text, { eigeneLetzte: eigene })
+        if (pruef.verwerfen) {
+          if (!zusatz) { log(`${name}: ${pruef.verwerfen}, frage erneut`); return entscheide(phase, sicht, lebende, extra, ZUSATZ) }
+          return verwerfe(pruef.verwerfen)
+        }
+        const text = pruef.text
         if (!text) return phase === 'diskussion' ? { art: 'schweigt' } : verwerfe('leerer Text')
+        letzte = text
         return { art: 'sagt', text, an: andere.includes(e.an) ? e.an : null, behauptet: ORT_NAMEN.includes(e.behauptetPlatz) ? e.behauptetPlatz : behauptungAus(text) }
       }
       case 'schweigen': return { art: 'schweigt' }
