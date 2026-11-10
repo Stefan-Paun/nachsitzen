@@ -14,7 +14,7 @@ import { claudeGehirn, ladeFigur } from './spiel/gehirn.mjs'
 import { browserGehirn } from './spiel/browsergehirn.mjs'
 import { claudeAnfrage } from './spiel/claude.mjs'
 import { apiSchluessel } from './spiel/schluessel.mjs'
-import { kostenRechner } from './spiel/kosten.mjs'
+import { kostenRechner, deckelAusUmgebung } from './spiel/kosten.mjs'
 import { ORT_NAMEN, KLASSENBUCH } from './spiel/welt.mjs'
 import { hefteSpeicher } from './spiel/hefte.mjs'
 
@@ -232,12 +232,14 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
     const s = erstelleServer({ gehirnFabrik: (name, rolle, { zufall: z }) => skriptGehirn(name, rolle, z), pause: 900 })
     console.log(`Nachsitzen (Skript-Modus, keine KI) laeuft auf http://localhost:${await s.starten()}`)
   } else {
-  const kosten = kostenRechner()
+  const deckel = deckelAusUmgebung()
+  const kosten = kostenRechner({ deckel })
+  console.log(`  Tagesdeckel: ${deckel} $ (NACHSITZEN_DECKEL)`)
   const anfrage = claudeAnfrage({ schluessel: apiSchluessel(), kosten, log: (m) => console.log(`  (${m})`) })
   let deckelGemeldet = false
   const fabrik = (name, rolle, opts) => claudeGehirn(ladeFigur(name), rolle, { anfrage, ...opts, log: (m) => {
     console.log(`  (${m})`)
-    if (m.includes('Tagesdeckel') && !deckelGemeldet) { deckelGemeldet = true; s.melde('deckel', { text: 'Der Tagesdeckel für die KI-Aufrufe ist erreicht. Die Figuren schweigen ab jetzt, bis morgen (oder du erhöhst DECKEL_PRO_TAG in spiel/kosten.mjs).' }) }
+    if (m.includes('Tagesdeckel') && !deckelGemeldet) { deckelGemeldet = true; s.melde('deckel', { text: 'Der Tagesdeckel für die KI-Aufrufe ist erreicht. Die Figuren schweigen ab jetzt, bis morgen (oder du erhöhst NACHSITZEN_DECKEL).' }) }
   } })
   const s = erstelleServer({ gehirnFabrik: fabrik, hefte: hefteSpeicher() })
   const port = await s.starten()

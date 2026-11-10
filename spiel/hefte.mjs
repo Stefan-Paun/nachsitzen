@@ -4,13 +4,13 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import os from 'node:os'
+import { standardOrdner as datenOrdner } from './ordner.mjs'
 
 export const MAX_EINTRAEGE_IM_PROMPT = 5
 export const VERTRAUEN = { '-2': 'traue ich gar nicht', '-1': 'bin ich skeptisch', '0': 'weiß ich nicht', '1': 'traue ich eher', '2': 'vertraue ich' }
 
 export function standardOrdner() {
-  return path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'), 'nachsitzen', 'hefte')
+  return path.join(datenOrdner(), 'hefte')
 }
 
 export function hefteSpeicher({ ordner = standardOrdner() } = {}) {
