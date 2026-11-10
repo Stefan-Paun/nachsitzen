@@ -4,6 +4,7 @@
 // Seit M2.5 gibt es eine echte Nacht: Plaetze, Beobachtungen, Funde, Untersuchungen, Tagesereignisse.
 
 import { verteileRollen, SCHATTEN, SCHLUESSEL } from './rollen.mjs'
+import { pultText } from './figurentext.mjs'
 import { auswerten } from './abstimmung.mjs'
 import { ORT_NAMEN, KLASSENBUCH, istOrt, beobachtungen, funde, tagesereignis, untersuchung, opferSatz } from './welt.mjs'
 
@@ -42,7 +43,7 @@ export function neuePartie(namen, zufall, { spieler = null } = {}) {
     sieger: null,                     // 'schueler' | 'schatten' | null
     zufall,
   }
-  melde(p, 'start', { text: 'Die Tür fällt ins Schloss. Sieben Pulte, eine Lampe.' })
+  melde(p, 'start', { text: `Die Tür fällt ins Schloss. ${pultText(namen.length)} Pulte, eine Lampe.` })
   for (const name of namen) melde(p, 'rolle', { name, rolle: rollen[name] }, [name])
   return p
 }

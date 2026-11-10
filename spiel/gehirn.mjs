@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url'
 import { SCHATTEN, SCHLUESSEL } from './rollen.mjs'
 import { ORT_NAMEN, KLASSENBUCH, bei, behauptungAus, VORTEILE } from './welt.mjs'
 import { eintragBauen } from './hefte.mjs'
+import { kennung, MITGELIEFERT, pruefeOderWirf } from './figurenschema.mjs'
+import { figurFelder, gruppeText, schuelerText } from './figurentext.mjs'
 
 const HIER = path.dirname(fileURLToPath(import.meta.url))
 const SYSTEM_VORLAGE = fs.readFileSync(path.join(HIER, '..', 'prompts', 'system.md'), 'utf8')
@@ -22,17 +24,22 @@ export function satzende(text, max) {
   return ende > max / 3 ? kurz.slice(0, ende + 1) : kurz
 }
 
+// Mitgelieferte Figuren aus figuren/*.json, geprueft mit demselben Schema wie die eigenen.
+// Der Dateiname kommt aus der bereinigten Kennung und nur fuer bekannte Namen.
 export function ladeFigur(name) {
-  return JSON.parse(fs.readFileSync(path.join(HIER, '..', 'figuren', `${name.toLowerCase()}.json`), 'utf8'))
+  const k = kennung(name)
+  if (!MITGELIEFERT.some((m) => kennung(m) === k)) throw new Error(`Keine mitgelieferte Figur „${String(name).slice(0, 30)}“`)
+  return pruefeOderWirf(JSON.parse(fs.readFileSync(path.join(HIER, '..', 'figuren', `${k}.json`), 'utf8')), { eingebaut: true })
 }
 
 // --- Prompt ------------------------------------------------------------------------------
 
 export function systemPrompt(figur, rolle, mitspieler, spieler, heft = '') {
+  const anzahl = mitspieler.length >= 4 ? mitspieler.length : 7   // ohne Angabe: die bisherige Besetzung
   const ersetze = {
     heft: heft ? `## Dein Heft (aus früheren Nächten; das sind deine echten Erinnerungen, nutze sie)\n${heft}\n` : '',
-    name: figur.name, alter: String(figur.alter), beschreibung: figur.beschreibung, stil: figur.stil,
-    beispiele: figur.beispiele.map((b) => `- „${b}“`).join('\n'),
+    ...figurFelder(figur),
+    gruppe: gruppeText(anzahl), schueler: schuelerText(anzahl),
     mitspieler: mitspieler.filter((n) => n !== figur.name).join(', '),
     spielerhinweis: '',   // der Mensch wird nicht erwaehnt: die Figuren sollen ihn behandeln wie jeden anderen
     rolle: ROLLEN_TEXTE[rolle],
