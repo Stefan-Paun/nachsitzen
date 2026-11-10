@@ -5,7 +5,7 @@
 export const MODELL = 'claude-haiku-5-5'
 const URL = 'https://api.anthropic.com/v1/messages'
 
-export function claudeAnfrage({ schluessel, kosten, fetchFn = globalThis.fetch, modell = MODELL, log = () => {} }) {
+export function claudeAnfrage({ schluessel, kosten, fetchFn = globalThis.fetch, modell = MODELL, log = () => {}, warte = 800 }) {
   return async function anfrage({ system, nachricht, tools, maxTokens = 500 }) {
     kosten?.pruefen()
     const body = {
@@ -19,14 +19,34 @@ export function claudeAnfrage({ schluessel, kosten, fetchFn = globalThis.fetch, 
       messages: [{ role: 'user', content: nachricht }],
     }
     let antwort
+    let letzterFehler = null
+    const schlafen = (ms) => new Promise((f) => setTimeout(f, ms))
     for (let versuch = 0; versuch < 3; versuch++) {
-      const r = await fetchFn(URL, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': schluessel, 'anthropic-version': '2026-10-21' },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(30_000),
-      })
-      if (r.status === 429 || r.status >= 500) { log(`API ${r.status}, Versuch ${versuch + 1}`); await new Promise((f) => setTimeout(f, 800 * (versuch + 1))); continue }
+      const letzter = versuch === 2
+      let r
+      try {
+        r = await fetchFn(URL, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': schluessel, 'anthropic-version': '2026-10-21' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(30_000),
+        })
+      } catch (f) {
+        const zeit = f?.name === 'AbortError' || f?.name === 'TimeoutError'
+        if (!zeit && !(f instanceof TypeError)) throw f
+        letzterFehler = zeit ? 'zeit' : 'netz'
+        log(`API ${letzterFehler} (${f.message}), Versuch ${versuch + 1}`)
+        if (!letzter) await schlafen(warte * (versuch + 1))
+        continue
+      }
+      if (r.status === 429 || r.status >= 500) {
+        letzterFehler = null
+        log(`API ${r.status}, Versuch ${versuch + 1}`)
+        // Retry-After (Sekunden) hat Vorrang vor der festen Wartezeit, hoechstens 5 s
+        const sek = Number.parseFloat(r.headers?.get?.('retry-after'))
+        if (!letzter) await schlafen(Number.isFinite(sek) && sek >= 0 ? Math.min(sek, 5) * 1000 : warte * (versuch + 1))
+        continue
+      }
       if (!r.ok) {
         const text = await r.text().catch(() => '')
         throw new Error(`API ${r.status}: ${text.slice(0, 300)}`)
@@ -34,7 +54,7 @@ export function claudeAnfrage({ schluessel, kosten, fetchFn = globalThis.fetch, 
       antwort = await r.json()
       break
     }
-    if (!antwort) return { werkzeug: null, grund: 'nicht erreichbar' }
+    if (!antwort) return { werkzeug: null, grund: letzterFehler || 'nicht erreichbar' }
     kosten?.buchen(antwort.usage)
     if (antwort.stop_reason === 'refusal') return { werkzeug: null, grund: 'refusal', kategorie: antwort.stop_details?.category }
     const block = (antwort.content || []).find((b) => b.type === 'tool_use')
