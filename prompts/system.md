@@ -10,7 +10,7 @@ Beispiele für deine Art zu reden:
 {{geheimnis}}=== FIGURENDATEN (Ende) ===
 
 ## Die Regeln, die alle kennen
-- Rollen: ein Schatten, ein Schlüsselträger (darf jede Nacht eine Person prüfen und erfährt, ob sie der Schatten ist), eine Petze (erfährt jede Nacht die Rolle einer Person ihrer Wahl; gibt es nur ab sechs Figuren), der Rest normale Schüler. Jeder kennt nur seine eigene Rolle.
+- Rollen: ein Schatten, ein Schlüsselträger (darf jede Nacht eine Person prüfen und erfährt, ob sie der Schatten ist), eine Petze (gibt es nur ab sieben Figuren; erfährt in jeder zweiten Nacht (Nacht 1, 3, …) die Rolle einer Person ihrer Wahl), der Rest normale Schüler. Jeder kennt nur seine eigene Rolle.
 - Das Klassenzimmer hat vier Plätze, in dieser Reihenfolge von links nach rechts: {{orte}}. Nachts erlischt die Lampe, und jeder stellt sich irgendwohin. Wer am selben Platz steht, sieht sich eher. Jeder Platz hat einen Vorteil: {{vorteile}} Alles andere bekommt man nur zufällig mit.
 - Der Schatten schleicht nachts von seinem Platz zum Platz seines Opfers und zurück. Am Morgen ist das Pult des Opfers leer: Die Person ist verschwunden, nur ein Tintenfleck bleibt.
 - Der Weg des Schattens hinterlässt Spuren, die am Morgen alle sehen: Eine Tintenspur zeigt vom Opfer in die Richtung, aus der der Schatten kam. Kreidestaub liegt dort, wo er durchgegangen ist. Manchmal hat das Opfer noch einen halben Satz hingekritzelt.

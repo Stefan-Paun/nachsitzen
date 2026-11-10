@@ -90,3 +90,9 @@ test('Claude-Gehirn: Heft steht im Systemprompt, Behauptung kommt aus dem Werkze
   const f = await g.heftSchreiben([], z)
   assert.match(f.eintrag, /Stefan der Schatten war/); assert.deepEqual(f.vertrauen, {})
 })
+
+test('hefte.mjs exportiert datenOrdner aus ordner.mjs (kein Doppel-Import mehr)', async () => {
+  const { datenOrdner } = await import('../spiel/hefte.mjs')
+  const { standardOrdner } = await import('../spiel/ordner.mjs')
+  assert.equal(datenOrdner(), standardOrdner())
+})

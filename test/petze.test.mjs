@@ -331,3 +331,15 @@ test('Oberflaeche und Terminal: Rollentext, Nachtauswahl und Hinweis kennen die 
   const { hinweisFuer } = await import('../tools/zughinweis.mjs')
   assert.match(hinweisFuer({ art: 'nacht', aufgabe: 'erfragen', orte: P.ORT_NAMEN, optionen: ['Mira'] }), /von wem du die Rolle erfahren willst/)
 })
+
+test('Prompt-Texte: Petze-Schwelle und Rhythmus stimmen mit dem Code überein', async () => {
+  const { readFileSync } = await import('node:fs')
+  const system = readFileSync(new URL('../prompts/system.md', import.meta.url), 'utf8')
+  const rollen = JSON.parse(readFileSync(new URL('../prompts/rollen.json', import.meta.url), 'utf8'))
+  assert.equal(P.PETZE_JEDE, 2)
+  assert.match(system, /ab sieben Figuren/)
+  assert.match(system, /jeder zweiten Nacht/)
+  assert.doesNotMatch(system, /ab sechs/)
+  assert.match(rollen.petze, /jeder zweiten Nacht/)
+  assert.doesNotMatch(rollen.petze, /Jede Nacht darfst/)
+})
