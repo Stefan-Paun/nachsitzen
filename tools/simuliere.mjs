@@ -11,9 +11,9 @@ import { skriptGehirn } from './skriptgehirne.mjs'
 export const FIGUREN = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora', 'Sam', 'Stefan']
 
 // petze: null = Standard (ab PETZE_AB Figuren), true/false erzwingt die Rolle an/aus
-export async function spielePartie(startwert, namen = FIGUREN, { petze = null } = {}) {
+export async function spielePartie(startwert, namen = FIGUREN, { petze = null, petzeJede = P.PETZE_JEDE } = {}) {
   const z = zufall(startwert)
-  const p = P.neuePartie(namen, z, { petze })
+  const p = P.neuePartie(namen, z, { petze, petzeJede })
   const mitPetze = !!P.petze(p)
   const gehirne = Object.fromEntries(namen.map((n) => [n, skriptGehirn(n, p.rollen[n], z, { mitPetze })]))
   return spieleBisZumEnde(p, gehirne, { zufall: z })

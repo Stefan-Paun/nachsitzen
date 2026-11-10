@@ -3,12 +3,13 @@ import assert from 'node:assert/strict'
 import { zufall } from '../spiel/zufall.mjs'
 import { verteileRollen, SCHATTEN, SCHLUESSEL, PETZE, SCHUELER, PETZE_AB } from '../spiel/rollen.mjs'
 import * as P from '../spiel/partie.mjs'
+import { werkzeuge } from '../spiel/gehirn.mjs'
 
-const ALLE = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora', 'Sam', 'Stefan', 'Ben']
+const ALLE = ['Mira', 'Jonas', 'Lea', 'Tarik', 'Nora', 'Sam', 'Stefan', 'Ben']   // 7 Namen = das echte Spiel
 const NAMEN = ALLE.slice(0, 7)
 
 test('Verteilung: genau eine Petze ab der Schwelle, darunter keine', () => {
-  assert.equal(PETZE_AB, 6)
+  assert.equal(PETZE_AB, 7)
   for (let n = 4; n <= 8; n++) {
     for (let s = 0; s < 40; s++) {
       const r = Object.values(verteileRollen(ALLE.slice(0, n), zufall(s)))
@@ -48,6 +49,28 @@ test('Nachtaktion: Petze erfaehrt die Rolle, kein Selbstziel, nur lebende Ziele,
   P.schattenWaehlt(q, P.holbar(q).find((n) => n !== P.schluesseltraeger(q) && n !== P.petze(q)))
   P.schluesselPrueft(q, P.schatten(q))
   assert.throws(() => P.morgen(q), /Petze hat noch nicht gewählt/)
+})
+
+test('Rhythmus: die Petze erfaehrt nur jede zweite Nacht (1, 3, ...); in den anderen Naechten ist weder Aktion noch Werkzeug da', () => {
+  const p = bisNacht(8)
+  const x = P.petze(p), s = P.schatten(p), k = P.schluesseltraeger(p)
+  assert.equal(P.PETZE_JEDE, 2)
+  assert.equal(P.petzeAktiv(p), true)
+  p.lebende.forEach((n, i) => P.platzWaehlen(p, n, P.ORT_NAMEN[i % 4]))
+  P.schattenWaehlt(p, p.lebende.find((n) => n !== s && n !== k && n !== x)); P.schluesselPrueft(p, s); P.petzePrueft(p, s); P.morgen(p)
+  while (p.phase === 'diskussion') P.naechsteRunde(p)
+  for (const n of p.lebende) P.stimme(p, n, null)
+  P.abstimmungSchliessen(p)
+  assert.equal(p.nacht, 2); assert.equal(P.petzeAktiv(p), false)
+  assert.throws(() => P.petzePrueft(p, s), /setzt in dieser Nacht aus/)
+  p.lebende.forEach((n, i) => P.platzWaehlen(p, n, P.ORT_NAMEN[i % 4]))
+  P.schattenWaehlt(p, P.holbar(p).find((n) => n !== k && n !== x)); P.schluesselPrueft(p, s)
+  P.morgen(p)                           // ohne Petze-Wahl moeglich
+  assert.ok(P.lebt(p, x))
+  assert.ok(!p.ereignisse.some((e) => e.art === 'petze-prueft' && e.nacht === 2))
+  assert.deepEqual(werkzeuge('nacht', PETZE, ['Mira'], { petzeAktiv: false }).map((t) => t.name), ['verstecken'])
+  const q = P.neuePartie(NAMEN, zufall(8), { petzeJede: 1 })   // Option: jede Nacht
+  q.nacht = 2; assert.equal(P.petzeAktiv(q), true)
 })
 
 test('Nachtaktion: ohne Petze (5 Figuren) gibt es keine Aktion und Morgen braucht sie nicht', () => {
@@ -103,7 +126,7 @@ test('Sichtbarkeit (Partie): das Petze-Ereignis steht nur in der Sicht der Petze
 
 // --- Sichtbarkeit an allen Stellen, die Text an ein Gehirn oder den Browser geben ----------
 
-import { claudeGehirn, ladeFigur, verlaufAlsText, werkzeuge, systemPrompt } from '../spiel/gehirn.mjs'
+import { claudeGehirn, ladeFigur, verlaufAlsText, systemPrompt } from '../spiel/gehirn.mjs'
 import { spieleBisZumEnde } from '../spiel/schleife.mjs'
 import { spurentafelText } from '../spiel/spurentafel.mjs'
 import { erstelleServer, KI_FIGUREN } from '../server.mjs'
@@ -248,4 +271,52 @@ test('Browser-Gehirn: Petze-Aufgabe heisst erfragen und braucht ein Ziel', async
   assert.match(g.aktion({ platz: 'Tür', ziel: 'Sam' }), /nicht erfragen/)
   assert.equal(g.aktion({ platz: 'Tür', ziel: 'Mira' }), null)
   assert.deepEqual(await f, { platz: 'Tür', ziel: 'Mira', verwischen: false })
+})
+
+// --- Balance (fester Startwert, Skript-Gehirne) ---------------------------------------------
+
+import { statistik } from '../tools/simuliere.mjs'
+
+test('Balance: mit Petze (7 Figuren, jede zweite Nacht) gewinnt der Schatten in 40 bis 60 Prozent', async () => {
+  const st = await statistik(2000, 1, ALLE.slice(0, 7))
+  const q = 100 * st.schatten / st.partien
+  assert.equal(st.partien, 2000); assert.equal(st.schatten + st.schueler, 2000)
+  assert.ok(q >= 40 && q <= 60, `Schatten-Quote ${q} %`)
+})
+
+test('Balance: ohne Petze bei 4 und 6 Figuren im Ziel; die Petze selbst senkt die Schattenquote spuerbar', async () => {
+  for (const n of [4, 6]) {
+    const st = await statistik(2000, 1, ALLE.slice(0, n), { petze: false })
+    const q = 100 * st.schatten / st.partien
+    assert.ok(q >= 40 && q <= 60, `${n} Figuren ohne Petze: ${q} %`)
+  }
+  const ohne = await statistik(2000, 1, ALLE.slice(0, 7), { petze: false })
+  const mit = await statistik(2000, 1, ALLE.slice(0, 7), { petze: true, petzeJede: 1 })
+  assert.ok(mit.schatten < ohne.schatten, 'Petze hilft den Schuelern')
+})
+
+test('Balance: dieselbe Messung zweimal gibt dasselbe Ergebnis (fester Startwert)', async () => {
+  const a = await statistik(200, 7, ALLE.slice(0, 7)), b = await statistik(200, 7, ALLE.slice(0, 7))
+  assert.deepEqual(a, b)
+})
+
+test('Skript-Petze: prueft Verdaechtige zuerst und sagt einen gefundenen Schatten an; der Schatten gibt sich als Petze aus', () => {
+  const z = zufall(1)
+  const g = skriptGehirn('Lea', PETZE, z)
+  const sicht = [{ art: 'sagt', von: 'Mira', an: 'Tarik', text: 'Tarik, du warst nicht an deinem Platz.' }]
+  const n = g.nacht(sicht, ['Mira', 'Jonas', 'Lea', 'Tarik'], { orte: P.ORT_NAMEN, petzeAktiv: true })
+  assert.equal(n.ziel, 'Tarik', 'der Beschuldigte zuerst')
+  g.merkePetze('Tarik', SCHATTEN)
+  const d = g.diskussion([], ['Mira', 'Jonas', 'Lea', 'Tarik'])
+  assert.match(d.text, /Ich bin die Petze.*Tarik ist der Schatten/); assert.equal(d.an, 'Tarik')
+  assert.deepEqual(g.abstimmung([], ['Mira', 'Lea', 'Tarik']), { fuer: 'Tarik' })
+  const h = skriptGehirn('Lea', PETZE, zufall(2))
+  assert.ok(!('ziel' in h.nacht([], ['Mira', 'Lea'], { orte: P.ORT_NAMEN, petzeAktiv: false })), 'ausgesetzte Nacht: kein Ziel')
+  // Schatten: gibt sich manchmal als Petze aus (nur wenn es eine gibt), nie ohne
+  const gaben = (mit) => { let c = 0; for (let i = 1; i <= 300; i++) { const s = skriptGehirn('Sam', SCHATTEN, zufall(i), { mitPetze: mit }); const a = s.diskussion([], ['Mira', 'Sam', 'Tarik']); if (a.text?.startsWith('Ich bin die Petze')) c++ } return c }
+  assert.ok(gaben(true) > 5); assert.equal(gaben(false), 0)
+  // und er holt, wer ihn als Schatten angesagt hat
+  const sch = skriptGehirn('Sam', SCHATTEN, zufall(3))
+  const sagt = [{ art: 'sagt', von: 'Nora', an: 'Sam', text: 'Ich bin die Petze, ich habe Sam nachts durchschaut: Sam ist der Schatten.' }, { art: 'sagt', von: 'Mira', an: null, text: 'Blabla' }, { art: 'sagt', von: 'Mira', an: null, text: 'Mehr Blabla' }]
+  assert.equal(sch.nacht(sagt, ['Mira', 'Nora', 'Sam'], { orte: P.ORT_NAMEN, ziele: ['Mira', 'Nora'] }).ziel, 'Nora')
 })

@@ -87,7 +87,7 @@ const namenSchema = (namen, beschreibung) => ({ type: 'string', enum: namen, des
 const platzSchema = { type: 'string', enum: ORT_NAMEN, description: 'Wo du dich heute Nacht hinstellst. Das steht morgen vielleicht in einer Spur.' }
 const objekt = (properties) => ({ type: 'object', additionalProperties: false, required: Object.keys(properties), properties })
 
-export function werkzeuge(phase, rolle, andere, { verwischen = false } = {}) {
+export function werkzeuge(phase, rolle, andere, { verwischen = false, petzeAktiv = true } = {}) {
   const sprechen = {
     name: 'sprechen', description: 'Etwas sagen, das alle im Raum hören. Höchstens zwei Sätze.', strict: true,
     input_schema: objekt({ text: { type: 'string', description: 'Was du sagst, in deiner Art.' }, an: { anyOf: [{ type: 'string', enum: andere }, { type: 'null' }], description: 'Wen du direkt ansprichst, oder null für alle.' }, behauptetPlatz: { anyOf: [{ type: 'string', enum: ORT_NAMEN }, { type: 'null' }], description: 'Falls du in diesem Satz sagst, wo DU letzte Nacht standest (wahr oder gelogen): dieser Platz. Sonst null.' } }),
@@ -103,7 +103,7 @@ export function werkzeuge(phase, rolle, andere, { verwischen = false } = {}) {
         return [{ name: 'holen', description: 'Deinen Platz wählen und diese Person heute Nacht holen: Sie verschwindet. Dein Weg hinterlässt Spuren.', strict: true, input_schema: objekt(felder) }]
       }
       if (rolle === SCHLUESSEL) return [{ name: 'pruefen', description: 'Deinen Platz wählen und diese Person heute Nacht prüfen: Du erfährst, ob sie der Schatten ist.', strict: true, input_schema: objekt({ platz: platzSchema, ziel: namenSchema(andere, 'Wen du prüfst.') }) }]
-      if (rolle === PETZE) return [{ name: 'erfragen', description: 'Deinen Platz wählen und von dieser Person heute Nacht die Rolle erfahren: Du siehst sicher, was sie ist (Schatten, Schlüsselträger oder Schüler).', strict: true, input_schema: objekt({ platz: platzSchema, ziel: namenSchema(andere, 'Wessen Rolle du erfährst.') }) }]
+      if (rolle === PETZE && petzeAktiv) return [{ name: 'erfragen', description: 'Deinen Platz wählen und von dieser Person heute Nacht die Rolle erfahren: Du siehst sicher, was sie ist (Schatten, Schlüsselträger oder Schüler).', strict: true, input_schema: objekt({ platz: platzSchema, ziel: namenSchema(andere, 'Wessen Rolle du erfährst.') }) }]
       return [{ name: 'verstecken', description: 'Deinen Platz für die Nacht wählen.', strict: true, input_schema: objekt({ platz: platzSchema }) }]
     case 'abstimmung': return [{ name: 'abstimmen', description: 'Dein geheimer Zettel: wer in den Keller soll, oder "niemand". Niemand sieht ihn vor der Auszählung.', strict: true, input_schema: objekt({ fuer: namenSchema([...andere, 'niemand'], 'Dein Kandidat oder niemand.') }) }]
     default: return []
@@ -125,11 +125,11 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
 
   async function entscheide(phase, sicht, lebende, extra = {}) {
     const andere = phase === 'nacht' && extra.ziele ? extra.ziele : lebende.filter((n) => n !== name)
-    const tools = werkzeuge(phase, rolle, andere, { verwischen: !!extra.verwischen })
+    const tools = werkzeuge(phase, rolle, andere, { verwischen: !!extra.verwischen, petzeAktiv: extra.petzeAktiv !== false })
     const nachricht = `Was du bisher mitbekommen hast:\n${verlaufAlsText(sicht, name)}\n\nNoch im Raum: ${lebende.join(', ')}.\n${AUFGABE[phase]}`
     let erg
     try { erg = await anfrage({ system, nachricht, tools }) } catch (f) { erg = { werkzeug: null, grund: f.message } }
-    const verwerfe = (grund) => { log(`${name}: ${grund}, Rückfall`); return rueckfall(phase, andere) }
+    const verwerfe = (grund) => { log(`${name}: ${grund}, Rückfall`); return rueckfall(phase, andere, extra.petzeAktiv !== false) }
     const w = erg.werkzeug
     if (!w || !tools.some((t) => t.name === w.name)) return verwerfe(w ? `Werkzeug ${w.name} nicht erlaubt in ${phase}` : (erg.grund || 'kein Werkzeug'))
     const e = w.eingabe
@@ -151,11 +151,11 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
     }
   }
 
-  function rueckfall(phase, andere) {
+  function rueckfall(phase, andere, petzeAktiv = true) {
     switch (phase) {
       case 'abend': return { art: 'sagt', text: 'Ist hier noch jemand wach?', an: null }
       case 'diskussion': return { art: 'schweigt' }
-      case 'nacht': return { platz: zufall.aus(ORT_NAMEN), ziel: rolle === SCHATTEN || rolle === SCHLUESSEL || rolle === PETZE ? zufall.aus(andere) : undefined }
+      case 'nacht': return { platz: zufall.aus(ORT_NAMEN), ziel: rolle === SCHATTEN || rolle === SCHLUESSEL || (rolle === PETZE && petzeAktiv) ? zufall.aus(andere) : undefined }
       case 'abstimmung': return { art: 'stimme', fuer: null }
       default: return { art: 'schweigt' }
     }

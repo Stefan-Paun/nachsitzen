@@ -5,7 +5,7 @@ export const SCHATTEN = 'schatten'
 export const SCHLUESSEL = 'schluessel'
 export const SCHUELER = 'schueler'
 export const PETZE = 'petze'
-export const PETZE_AB = 6   // ab so vielen Figuren gibt es eine Petze (bei 4-5 kippt das Gleichgewicht)
+export const PETZE_AB = 7   // ab so vielen Figuren gibt es eine Petze; darunter kippt das Gleichgewicht (Messung: docs/balance-petze.md)
 
 // `petze`: true/false erzwingt die Rolle an/aus (Simulation), null = ab PETZE_AB.
 export function verteileRollen(namen, zufall, { petze = null } = {}) {

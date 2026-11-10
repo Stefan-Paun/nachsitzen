@@ -37,11 +37,11 @@ export async function spieleBisZumEnde(p, gehirne, { zufall, beobachter = () => 
       const s = P.schatten(p), k = P.schluesseltraeger(p), x = P.petze(p)
       for (const n of zufall.mischen(p.lebende)) {
         const ziele = n === s ? P.holbar(p) : p.lebende.filter((x) => x !== n)
-        const a = await gehirne[n].nacht(sicht(n), p.lebende, { orte: ORT_NAMEN, ziele, verwischen: n === s && P.darfVerwischen(p) })
+        const a = await gehirne[n].nacht(sicht(n), p.lebende, { orte: ORT_NAMEN, ziele, verwischen: n === s && P.darfVerwischen(p), petzeAktiv: P.petzeAktiv(p) })
         P.platzWaehlen(p, n, a.platz)
         if (n === s) P.schattenWaehlt(p, a.ziel, !!a.verwischen && P.darfVerwischen(p))
         else if (n === k) gehirne[k].merkePruefung?.(a.ziel, P.schluesselPrueft(p, a.ziel))
-        else if (n === x) gehirne[x].merkePetze?.(a.ziel, P.petzePrueft(p, a.ziel))
+        else if (n === x && P.petzeAktiv(p)) gehirne[x].merkePetze?.(a.ziel, P.petzePrueft(p, a.ziel))
         melde()
       }
       P.morgen(p); melde(); await pause()

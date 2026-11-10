@@ -10,9 +10,10 @@ import { ORT_NAMEN, KLASSENBUCH, istOrt, beobachtungen, funde, tagesereignis, un
 export const PHASEN = ['abend', 'nacht', 'morgen', 'diskussion', 'abstimmung', 'ergebnis', 'ende']
 export const SPRECHRUNDEN = 2        // Diskussionsrunden pro Tag (Hausmeister: 1)
 export const MAX_NAECHTE = 10        // Notbremse gegen Endlosschleifen
+export const PETZE_JEDE = 2         // die Petze erfaehrt nur jede n-te Nacht etwas (1 = jede Nacht; Balance, siehe docs/balance-petze.md)
 export const MAX_UNTERSUCHUNGEN = 3  // pro Figur und Partie (sonst ist die Wahrheit zu billig)
 
-export function neuePartie(namen, zufall, { spieler = null, petze = null } = {}) {
+export function neuePartie(namen, zufall, { spieler = null, petze = null, petzeJede = PETZE_JEDE } = {}) {
   const rollen = verteileRollen(namen, zufall, { petze })
   const p = {
     namen: [...namen],
@@ -28,6 +29,7 @@ export function neuePartie(namen, zufall, { spieler = null, petze = null } = {})
     plaetze: {},                      // Nacht: name -> Ort
     nachtwahl: null,                  // Ziel des Schattens in dieser Nacht
     pruefung: null,                   // { wer, ziel, rolle } des Schluesseltraegers
+    petzeJede,                        // Rhythmus der Petze (Nacht 1, 1+n, 1+2n ...)
     petzeWahl: null,                  // { wer, ziel, rolle } der Petze in dieser Nacht (privat)
     letzteNacht: null,                // { plaetze, schatten, opfer } fuer Untersuchungen am Tag
     naechte: [],                      // alle Naechte, fuer die Wahrheit am Ende
@@ -56,6 +58,8 @@ function melde(p, art, daten, sichtbar = null) {
 export function schatten(p) { return p.namen.find((n) => p.rollen[n] === SCHATTEN) }
 export function schluesseltraeger(p) { return p.namen.find((n) => p.rollen[n] === SCHLUESSEL) }
 export function petze(p) { return p.namen.find((n) => p.rollen[n] === PETZE) }   // undefined ohne Petze
+// Darf die Petze in dieser Nacht waehlen? (Nacht 1 immer, dann jede petzeJede-te)
+export function petzeAktiv(p) { const x = petze(p); return !!x && lebt(p, x) && (p.nacht - 1) % p.petzeJede === 0 }
 export function lebt(p, name) { return p.lebende.includes(name) }
 
 // Verlauf aus Sicht einer Figur: nur, was sie sehen durfte.
@@ -153,6 +157,7 @@ export function petzePrueft(p, ziel) {
   const x = petze(p)
   if (!x) throw new Error('Es gibt keine Petze')
   if (!lebt(p, x)) throw new Error('Die Petze ist nicht mehr im Spiel')
+  if (!petzeAktiv(p)) throw new Error('Die Petze setzt in dieser Nacht aus')
   if (p.petzeWahl) throw new Error('Die Petze hat heute schon gewählt')
   if (ziel === x || !lebt(p, ziel)) throw new Error(`Ungültiges Ziel: ${ziel}`)
   const rolle = p.rollen[ziel]
@@ -165,7 +170,7 @@ export function morgen(p) {
   pruefePhase(p, 'nacht')
   if (!p.nachtwahl) throw new Error('Der Schatten hat noch nicht gewählt')
   if (lebt(p, schluesseltraeger(p)) && !p.pruefung) throw new Error('Der Schlüsselträger hat noch nicht geprüft')
-  if (petze(p) && lebt(p, petze(p)) && !p.petzeWahl) throw new Error('Die Petze hat noch nicht gewählt')
+  if (petzeAktiv(p) && !p.petzeWahl) throw new Error('Die Petze hat noch nicht gewählt')
   const ohnePlatz = p.lebende.filter((n) => !p.plaetze[n])
   if (ohnePlatz.length) throw new Error(`Ohne Platz: ${ohnePlatz.join(', ')}`)
   const s = schatten(p), opfer = p.nachtwahl

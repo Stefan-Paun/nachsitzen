@@ -19,6 +19,12 @@ function lauteste(sicht, kandidaten) {
 }
 
 // mitPetze: gibt es in dieser Partie eine Petze? (Nur dann darf sich der Schatten als Petze ausgeben.)
+// Wer hat mich oeffentlich als Schatten entlarvt ("Ich bin die Petze ..." / "Ich habe nachts nachgesehen ...")? Die holt der Schatten zuerst.
+function entlarver(sicht, name, kandidaten) {
+  const k = sicht.filter((e) => e.art === 'sagt' && e.an === name && /^Ich (bin die Petze|habe nachts nachgesehen)/.test(e.text) && kandidaten.includes(e.von))
+  return k.length ? k.at(-1).von : null
+}
+
 export function skriptGehirn(name, rolle, zufall, { mitPetze = true } = {}) {
   const geprueft = {}             // nur Schluesseltraeger und Petze fuellen das: Name -> ist Schatten
   const gesehen = {}              // nur die Petze: Name -> Rolle, die sie erfahren hat
@@ -28,15 +34,15 @@ export function skriptGehirn(name, rolle, zufall, { mitPetze = true } = {}) {
     abend(sicht, lebende) {
       return { text: zufall.aus(['Ist jemand bei der Tür gewesen?', 'Mir ist kalt.', 'Wer hat das Licht gesehen?', 'Ich war die ganze Zeit hier.']) }
     },
-    nacht(sicht, lebende, { orte, ziele }) {
+    nacht(sicht, lebende, { orte, ziele, petzeAktiv = true }) {
       const andere = lebende.filter((n) => n !== name)
       meinPlatz = zufall.aus(orte)
-      if (rolle === SCHATTEN) return { platz: meinPlatz, ziel: lauteste(sicht, ziele ?? andere) }
+      if (rolle === SCHATTEN) return { platz: meinPlatz, ziel: entlarver(sicht, name, ziele ?? andere) ?? lauteste(sicht, ziele ?? andere) }
       if (rolle === SCHLUESSEL) {
         const offen = andere.filter((n) => !(n in geprueft))
         return { platz: meinPlatz, ziel: offen.length ? zufall.aus(offen) : zufall.aus(andere) }
       }
-      if (rolle === PETZE) {
+      if (rolle === PETZE && petzeAktiv) {
         // Verdaechtige zuerst: wer am meisten beschuldigt wurde, sonst irgendwer Ungeprueftes
         const offen = andere.filter((n) => !(n in gesehen))
         const b = beschuldigungen(sicht)
