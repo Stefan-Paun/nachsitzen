@@ -320,3 +320,14 @@ test('Skript-Petze: prueft Verdaechtige zuerst und sagt einen gefundenen Schatte
   const sagt = [{ art: 'sagt', von: 'Nora', an: 'Sam', text: 'Ich bin die Petze, ich habe Sam nachts durchschaut: Sam ist der Schatten.' }, { art: 'sagt', von: 'Mira', an: null, text: 'Blabla' }, { art: 'sagt', von: 'Mira', an: null, text: 'Mehr Blabla' }]
   assert.equal(sch.nacht(sagt, ['Mira', 'Nora', 'Sam'], { orte: P.ORT_NAMEN, ziele: ['Mira', 'Nora'] }).ziel, 'Nora')
 })
+
+test('Oberflaeche und Terminal: Rollentext, Nachtauswahl und Hinweis kennen die Petze', async () => {
+  const fs = await import('node:fs')
+  const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8')
+  assert.match(app, /petze: 'die Petze'/)
+  assert.match(app, /petze: 'Du erfährst jede zweite Nacht/)
+  assert.match(app, /case 'petze-prueft'/)
+  assert.match(app, /w\.aufgabe === 'erfragen'/)
+  const { hinweisFuer } = await import('../tools/zughinweis.mjs')
+  assert.match(hinweisFuer({ art: 'nacht', aufgabe: 'erfragen', orte: P.ORT_NAMEN, optionen: ['Mira'] }), /von wem du die Rolle erfahren willst/)
+})

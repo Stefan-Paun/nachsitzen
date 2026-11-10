@@ -5,10 +5,11 @@ import { layout, zeichneFigur, klasseAnimator, waehleSchreck } from './klasse.js
 import { tonAnlage } from './ton.js'
 
 const $ = (id) => document.getElementById(id)
-const ROLLE = { schatten: 'der Schatten', schluessel: 'der Schlüsselträger', schueler: 'ein normaler Schüler' }
+const ROLLE = { schatten: 'der Schatten', schluessel: 'der Schlüsselträger', petze: 'die Petze', schueler: 'ein normaler Schüler' }
 const ROLLE_ERKLAERT = {
   schatten: 'Du holst nachts jemanden. Lüge über deinen Platz, lenke ab. Du gewinnst, wenn nur noch zwei übrig sind. Einmal kannst du die Spur verwischen.',
   schluessel: 'Du prüfst nachts eine Person und erfährst sicher, ob sie der Schatten ist. Teile es klug: zu früh, und der Schatten holt dich.',
+  petze: 'Du erfährst jede zweite Nacht (Nacht 1, 3, …), welche Rolle eine Person deiner Wahl hat. Niemand sieht, wen du gewählt hast. Sag es weiter oder behalte es für dich: Man muss dir nicht glauben, und der Schatten holt dich, wenn du auffällst.',
   schueler: 'Finde den Schatten: Vergleiche, was die anderen über ihre Plätze sagen, mit Spuren, Beobachtungen und Beweisen.',
 }
 const PHASE = {
@@ -118,6 +119,7 @@ function zeigeEreignis(e) {
       for (const n of e.naechte) kartenZeile(k, `Nacht ${n.nacht}: ${Object.entries(n.plaetze).map(([k2, o]) => `${k2 === ich ? 'du' : k2} ${BEI[o] || o}`).join(', ')}. ${n.schatten} holt ${n.opfer}${n.verwischt ? ' und verwischt die Spur' : ''}.`)
       break
     }
+    case 'petze-prueft': regie(`${e.wer && e.wer !== ich ? `${e.wer} erfährt` : 'Du erfährst'} von ${e.ziel}: ${ROLLE[e.rolle]}.`, 'geheim'); break
     case 'pruefung': regie(`${e.wer && e.wer !== ich ? `${e.wer} prüft` : 'Du prüfst'} ${e.ziel}: ${e.istSchatten ? 'DER SCHATTEN.' : 'kein Schatten.'}`, 'geheim'); break
     case 'beobachtung':
       if (e.wer !== ich && !status?.zuschauen && !status?.geist) break
@@ -166,6 +168,7 @@ function merke(e) {
       }
       break
     case 'schatten-waehlt': wissen.zeilen.push({ k: 'geheim', t: `${e.wer && e.wer !== ich ? `${e.wer} holt` : 'Du holst'} ${e.ziel}.` }); break
+    case 'petze-prueft': wissen.zeilen.push({ k: 'geheim', t: `${e.wer && e.wer !== ich ? `${e.wer} erfährt` : 'Erfahren'}: ${e.ziel} ist ${ROLLE[e.rolle]}.` }); break
     case 'pruefung': wissen.zeilen.push({ k: 'geheim', t: `${e.wer && e.wer !== ich ? `${e.wer} prüft` : 'Geprüft'}: ${e.ziel} ist ${e.istSchatten ? 'DER SCHATTEN' : 'kein Schatten'}.` }); break
     case 'verschwunden': wissen.opfer = e.name; break
     case 'fund':
@@ -314,7 +317,7 @@ function zeigeWarte(w) {
     for (const o of w.orte) ortKnopf(wahl, o, () => {
       if (w.aufgabe === 'verstecken') return sende({ platz: o })
       wahl.innerHTML = ''
-      hinweis.textContent = `Du stehst ${BEI[o] || o}. ${w.aufgabe === 'holen' ? 'Wen holst du? Dein Weg dorthin hinterlässt Spuren.' : 'Wen prüfst du?'}`
+      hinweis.textContent = `Du stehst ${BEI[o] || o}. ${w.aufgabe === 'holen' ? 'Wen holst du? Dein Weg dorthin hinterlässt Spuren.' : w.aufgabe === 'erfragen' ? 'Von wem willst du die Rolle erfahren?' : 'Wen prüfst du?'}`
       let verwischen = false
       if (w.verwischen) { const b = knopf(wahl, 'Spur verwischen: aus', () => { verwischen = !verwischen; b.textContent = `Spur verwischen: ${verwischen ? 'an' : 'aus'}`; b.classList.toggle('leise', !verwischen) }, 'leise'); b.title = 'Einmal pro Partie. Keine Richtung, kein Kreidestaub, aber Nachbarn merken, dass du lange weg warst.' }
       for (const n of w.optionen) knopf(wahl, n, () => sende({ platz: o, ziel: n, verwischen }))

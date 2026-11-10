@@ -65,7 +65,7 @@ Mitspielen geht auch ohne Browser: `node tools/zug.mjs 4800 --neu DeinName`, dan
 
 | Phase | |
 |---|---|
-| Abend | Sieben sitzen fest: du und sechs Figuren mit eigenem Kopf. Eine ist der Schatten, eine hat den Schlüssel. |
+| Abend | Sieben sitzen fest: du und sechs Figuren mit eigenem Kopf. Eine ist der Schatten, eine hat den Schlüssel, und eine ist die Petze. |
 | Nacht | Jeder stellt sich an einen von vier Plätzen. Der Schatten schleicht zu seinem Opfer. Du bekommst mit, was in deiner Nähe passiert: Schritte, jemand, der sich bewegt, wer neben dir steht. |
 | Morgen | Ein Pult ist leer. Die Tintenspur zeigt, von welcher Seite der Schatten kam, Kreidestaub, wo er durchging, manchmal bleibt ein halber Satz des Opfers. Jeder darf einen Platz oder das Klassenbuch untersuchen und sein Ergebnis **vorzeigen**: Vorgezeigt gilt es als bewiesen. |
 | Gespräch | Die Figuren vergleichen Behauptungen mit dem, was sie gesehen haben. Wer über seinen Platz lügt, kann auffliegen. Wer angesprochen wird, antwortet als Nächster. |
@@ -73,6 +73,8 @@ Mitspielen geht auch ohne Browser: `node tools/zug.mjs 4800 --neu DeinName`, dan
 | Danach | Jede Figur schreibt in ihr Heft, wem sie traut. Beim nächsten Spiel liest sie es wieder. Und das Spiel zeigt die Wahrheit: alle Rollen und wer in welcher Nacht wo stand. |
 
 Jeder Platz hat nachts einen Vorteil: Bei der **Tür** hörst du jeden Schritt im Raum und die Richtung. An der **Tafel** merkst du sicher, wer vorbeihuscht. Bei den **Pulten** siehst du je eine Person links und rechts. Am **Fenster** zeigt das Mondlicht alle, die dort stehen. Untersuchen darf jeder einmal am Tag, höchstens dreimal pro Partie.
+
+**Die Petze** (ab 7 Figuren genau eine) erfährt in Nacht 1, 3, 5 … die Rolle einer Person ihrer Wahl: Schatten, Schlüsselträger, Petze oder Schüler. Niemand sonst sieht, wen sie gewählt hat oder was herauskam; ob sie es weitersagt und ob man ihr glaubt, ist Teil des Spiels (auch der Schatten darf sich als Petze ausgeben). Warum erst ab 7 und nur jede zweite Nacht: [docs/balance-petze.md](docs/balance-petze.md).
 
 Regeln, die man wissen sollte: In der ersten Nacht holt der Schatten nie den menschlichen Spieler. Der Schatten darf einmal pro Partie seine Spur verwischen. Scheidest du aus, schaust du als Geist weiter zu und siehst dann alles, auch die Nacht der anderen. Manchmal passiert etwas: ein Zettel unter der Tür (sagt die Wahrheit), der Hausmeister rüttelt (nur eine Gesprächsrunde), die Glocke läutet (offene Abstimmung).
 
@@ -89,8 +91,9 @@ Die Hefte liegen außerhalb des Repos unter `~/.local/share/nachsitzen/hefte/`. 
 ## Entwickeln
 
 ```
-npm test                          # 51 Tests ohne Netz: Regeln, Welt, Gehirn mit Fake-API, Server, Simulation
+npm test                          # Tests ohne Netz: Regeln, Welt, Gehirn mit Fake-API, Server, Simulation, Petze (Sichtbarkeit, Balance)
 npm run simuliere                 # 100 Partien mit Skript-Gehirnen, Siegquoten
+node tools/balance.mjs 2000 1     # Schatten-Siegquote für 4–8 Figuren, mit und ohne Petze
 npm run spiele -- --zuschauen     # eine echte Partie im Terminal (kostet Cent)
 ```
 

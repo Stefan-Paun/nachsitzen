@@ -15,3 +15,11 @@ Dritte Sonderrolle: Die Petze erfährt jede Nacht die Rolle einer lebenden Figur
 
 ## Nicht dabei
 Echte API-Aufrufe, Änderungen an den Inhaltsgrenzen in `prompts/system.md`, Browser-Sichtprüfung.
+
+## Stand
+Alle fünf Etappen sind umgesetzt.
+
+- Gewählt wurde: Petze **ab 7 Figuren** (`PETZE_AB`) und **nur jede zweite Nacht** (`PETZE_JEDE`); mit diesen Werten liegt die Schatten-Siegquote bei 7 Figuren bei 44,1 % (2000 Partien, Startwert 1). Tabelle und Begründung: `docs/balance-petze.md`, Messung mit `node tools/balance.mjs`.
+- Nicht im Zielbereich bleiben 5 Figuren ohne Petze (62 %) und 8 Figuren (36 % ohne, 31,8 % mit Petze): Das ist die Grundmechanik, nicht die Petze; bewusst nicht angefasst.
+- Sichtbarkeit: Das Ereignis `petze-prueft` ist nur für die Petze sichtbar (`sichtbar: [petze]`); Zuschauer und Geister sehen es wie alle privaten Nacht-Ereignisse mit Namen. Tests in `test/petze.test.mjs` decken Partie, Claude-Prompts (inkl. Heft-Anfrage), Werkzeuge, Spurentafel, Server/Browser, Wahrheit und Zusammenfassung ab.
+- Nicht im Browser angesehen: die Nachtauswahl der Petze in `public/app.js` ist nur per Text- und Syntaxprüfung getestet.

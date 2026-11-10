@@ -79,7 +79,7 @@ for (;;) {
   const v = await netz(basis + '/verlauf?ab=' + gezeigt).then(json)
   status = v.status
   for (const e of v.ereignisse) {
-    const ROLLE = { schatten: 'der Schatten (du holst nachts jemanden; lüge über deinen Platz; gewinne, wenn nur noch zwei übrig sind)', schluessel: 'der Schlüsselträger (du prüfst nachts eine Person und erfährst, ob sie der Schatten ist; teile es klug)', schueler: 'ein normaler Schüler (finde den Schatten über Spuren, Beobachtungen und Widersprüche)' }
+    const ROLLE = { schatten: 'der Schatten (du holst nachts jemanden; lüge über deinen Platz; gewinne, wenn nur noch zwei übrig sind)', schluessel: 'der Schlüsselträger (du prüfst nachts eine Person und erfährst, ob sie der Schatten ist; teile es klug)', petze: 'die Petze (du erfährst in Nacht 1, 3, … die Rolle einer Person deiner Wahl; niemand sieht, wen du wählst; ob du es sagst, entscheidest du)', schueler: 'ein normaler Schüler (finde den Schatten über Spuren, Beobachtungen und Widersprüche)' }
     const z = e.art === 'rolle' ? (e.name === status?.spieler ? `[Deine Rolle] ${ROLLE[e.rolle] || e.rolle}` : '')
       : e.art === 'ende' ? `[ENDE] ${e.sieger === 'schueler' ? 'Die Schüler gewinnen' : 'Der Schatten gewinnt'}. Der Schatten war ${e.schatten}.`
       : e.art === 'wahrheit' ? `[DIE WAHRHEIT] Rollen: ${Object.entries(e.rollen).map(([n, r]) => `${n}=${r}`).join(', ')}\n` + e.naechte.map((n) => `  Nacht ${n.nacht}: ${Object.entries(n.plaetze).map(([k, o]) => `${k}@${o}`).join(' ')} · Schatten ${n.schatten} holt ${n.opfer}${n.verwischt ? ' (Spur verwischt)' : ''}`).join('\n')

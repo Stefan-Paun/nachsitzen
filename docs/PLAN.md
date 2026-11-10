@@ -8,7 +8,7 @@ Verwandt mit der Nachtschule (Matura-Rallye), aber ein **eigenes Projekt**: kein
 
 ## 1. Das Spiel in einer Minute
 
-- **6 Figuren**: du + 5 KI-Schüler. Zu Beginn werden geheim Rollen verteilt: **1 Schatten**, **1 Schlüsselträger** (darf jede Nacht eine Person prüfen), 4 normale Schüler. Du kannst jede Rolle bekommen, auch den Schatten.
+- **6 Figuren**: du + 5 KI-Schüler. Zu Beginn werden geheim Rollen verteilt: **1 Schatten**, **1 Schlüsselträger** (darf jede Nacht eine Person prüfen), 4 normale Schüler. Du kannst jede Rolle bekommen, auch den Schatten. **Seit v1.2:** ab 7 Figuren zusätzlich 1 **Petze** (erfährt in jeder zweiten Nacht die Rolle einer Person; Wissen nur in ihrer Sicht), siehe `docs/plan-petze.md` und `docs/balance-petze.md`.
 - **Tag/Nacht-Takt** (eine Partie = 3–6 Nächte, 15–30 Minuten):
   1. **Abend** – alle sitzen im Klassenzimmer, kurze Vorstellung, Small Talk (hier zeigen die Figuren Charakter).
   2. **Nacht** – Licht aus. Der Schatten wählt heimlich eine Person. Der Schlüsselträger prüft heimlich eine Person.
