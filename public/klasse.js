@@ -5,6 +5,9 @@
 export const B = 320, H = 120
 const WAND_UNTEN = 58
 
+// Frisuren, die zeichneFigur kennt (figuren/*.json darf nur diese verwenden; test/figuren.test.mjs prueft das)
+export const FRISUREN = ['kurz', 'lang', 'bob', 'zopf', 'wuschel']
+
 // Zonen fuer die vier Plaetze (x-Mitte, y der Fuesse) und die sieben Pulte (4 vorne, 3 hinten)
 export const ZONEN = { 'Tür': { x: 40, y: 88 }, 'Tafel': { x: 112, y: 76 }, 'Pulte': { x: 178, y: 104 }, 'Fenster': { x: 276, y: 86 } }   // Tuer-Zone steht rechts neben der Kellerluke
 export const PULTE = [[100, 84], [140, 84], [180, 84], [220, 84], [120, 106], [160, 106], [200, 106]]   // Tischkante links-oben
