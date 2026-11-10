@@ -82,19 +82,29 @@ Regler oben: **Ton** (Wind und Klavier aus WebAudio), **Schrecken** (höchstens 
 
 ## Die Figuren
 
-Mira (Klassensprecherin, will Ordnung), Jonas (Witzbold, lenkt ab), Lea (still, merkt sich Widersprüche), Tarik (impulsiv, loyal), Nora (misstrauisch, rechnet), Sam (neu, glaubt zu schnell) und, wenn du nur zuschaust, Ben (Wiederholer, trocken). Ihre Charaktere stehen in `figuren/*.json`, die Spielregeln für sie in `prompts/`. Eigene Figuren: eine JSON-Datei nach demselben Muster, Name in `server.mjs` eintragen.
+Mira (Klassensprecherin, will Ordnung), Jonas (Witzbold, lenkt ab), Lea (still, merkt sich Widersprüche), Tarik (impulsiv, loyal), Nora (misstrauisch, rechnet), Sam (neu, glaubt zu schnell) und, wenn du nur zuschaust, Ben (Wiederholer, trocken). Ihre Charaktere stehen in `figuren/*.json`, die Spielregeln für sie in `prompts/`.
+
+### Eigene Figuren
+
+Auf dem Startbild öffnet **Eigene Figuren bauen …** den Editor: Name, Alter, Eigenheiten, Art zu reden, bis zu drei Beispielsätze, ein optionales Geheimnis und das Aussehen. Das Formular prüft beim Tippen (der Server benutzt dasselbe Schema wie beim Speichern), rechts siehst du die Figurenkarte. **Speichern**, **Duplizieren** und **In den Papierkorb** (die Datei wandert in den Unterordner `geloescht`, nichts wird gelöscht). Vor dem Start wählst du die Besetzung: 3 bis 7 KI-Figuren, dazu kommst du (oder Ben beim Zuschauen), also 4 bis 8 im Raum.
+
+- Ablage: `~/.local/share/nachsitzen/figuren/<kennung>.json` (neben den Heften, folgt `XDG_DATA_HOME`). Die Kennung wird aus dem Namen gebildet (nur `a-z`, `0-9`, `-`), nie aus Rohtext. Höchstens 12 eigene Figuren.
+- Grenzen (siehe `spiel/figurenschema.mjs`): Name 2 bis 20 Zeichen (Buchstaben, Ziffern, Leerzeichen, `'`, `-`; nicht Mira, Ben, Tür, niemand …), Eigenheiten 20 bis 400, Art zu reden 10 bis 300, Beispielsätze je 5 bis 160, Geheimnis bis 200; keine Steuerzeichen und keine `< > « » { }`.
+- Sicherheit: Figurentexte sind Daten. Im Systemprompt stehen sie zwischen `=== FIGURENDATEN … ===`-Markierungen, Steuerzeichen und Markierungen werden zusätzlich entfernt, und die Inhaltsgrenzen aus `prompts/system.md` bleiben unverändert und stehen hinter den Figurendaten. Die Routen `/figuren` prüfen Host und Herkunft (fremde Seiten bekommen 403), nehmen nur `application/json` und höchstens 8 KB. Es gibt kein Teilen oder Hochladen.
+- Ohne den Speicher (`erstelleServer` ohne `figuren`) sind Editor und Routen aus; die Oberfläche zeigt dann nur die sechs Standardfiguren.
+- Ohne Browser: `curl -X POST -H 'content-type: application/json' -d '{"zuschauen":true,"besetzung":["Mira","Paula","Sam"]}' localhost:4800/partie`.
 
 Die Hefte liegen außerhalb des Repos unter `~/.local/share/nachsitzen/hefte/`. Löschst du sie, fangen die Figuren wieder bei null an.
 
 ## Entwickeln
 
 ```
-npm test                          # 51 Tests ohne Netz: Regeln, Welt, Gehirn mit Fake-API, Server, Simulation
+npm test                          # 92 Tests ohne Netz: Regeln, Welt, Gehirn mit Fake-API, Server, Simulation, Figuren-Editor
 npm run simuliere                 # 100 Partien mit Skript-Gehirnen, Siegquoten
 npm run spiele -- --zuschauen     # eine echte Partie im Terminal (kostet Cent)
 ```
 
-Aufbau: `spiel/partie.mjs` (Regeln; jedes Ereignis weiß, wer es sehen darf), `spiel/welt.mjs` (die Wahrheit hinter dem Gerede: Plätze, Spuren, Beobachtungen), `spiel/gehirn.mjs` (Claude-Figur mit eigenem Kontext und Werkzeug-Aufrufen), `spiel/hefte.mjs` (Erinnerung), `spiel/spurentafel.mjs` (die Spurentafel als Text für Terminal und `zug.mjs --tafel`), `server.mjs` (lokaler Server, SSE), `public/` (Browser, Pixelszene). Der Plan mit allen Entscheidungen: [docs/PLAN.md](docs/PLAN.md).
+Aufbau: `spiel/partie.mjs` (Regeln; jedes Ereignis weiß, wer es sehen darf), `spiel/welt.mjs` (die Wahrheit hinter dem Gerede: Plätze, Spuren, Beobachtungen), `spiel/gehirn.mjs` (Claude-Figur mit eigenem Kontext und Werkzeug-Aufrufen), `spiel/hefte.mjs` (Erinnerung), `spiel/figurenschema.mjs` / `spiel/figurenspeicher.mjs` / `spiel/figurentext.mjs` (eigene Figuren: Prüfung, Ablage, Prompt-Bereinigung), `spiel/spurentafel.mjs` (die Spurentafel als Text für Terminal und `zug.mjs --tafel`), `server.mjs` (lokaler Server, SSE), `public/` (Browser, Pixelszene). Der Plan mit allen Entscheidungen: [docs/PLAN.md](docs/PLAN.md).
 
 Harte Grenzen für die Figuren stehen in `prompts/system.md`: Tinte statt Blut, nichts zu Selbstverletzung, nichts Sexuelles, keine echten Personen. Gruselig darf es sein, grausam nicht.
 

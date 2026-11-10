@@ -27,4 +27,13 @@ Partie mitspielen lassen, ohne JSON von Hand. Die mitgelieferten Figuren in `fig
 Teilen/Hochladen von Figuren, echte API-Aufrufe, Lockerung der Inhaltsgrenzen.
 
 ## Stand
-Etappe 1: offen.
+Alle fünf Etappen sind umgesetzt und committet.
+1. Schema und Speicher: `spiel/figurenschema.mjs`, `spiel/figurenspeicher.mjs`, `test/figuren.test.mjs`.
+2. Prompt: `spiel/figurentext.mjs`, `prompts/system.md` (Markierungen, Vorbemerkung; Grenzen unverändert), `test/figurentext.test.mjs`.
+3. Server: Routen `/figuren`, `/figuren/pruefen`, `besetzung` in `POST /partie`, `test/figurenserver.test.mjs` (inkl. Simulation 4 bis 8 Figuren).
+4. Oberfläche: `public/editor.js`, `public/besetzung.js`, Formular in `index.html`, achtes Pult in `klasse.js`.
+5. README und dieser Plan.
+
+Entscheidungen: Besetzung zählt die KI-Figuren (3 bis 7); Umbenennen = Duplizieren (Kennung bleibt stabil);
+Nicht im Browser angesehen: Layout und Verhalten des Editors sind nur über die Logikmodule und Server-Tests abgesichert.
+Offen für später: Hefte einer gelöschten Figur bleiben liegen und würden bei gleichem Namen wieder gelesen.
