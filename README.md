@@ -47,7 +47,7 @@ Dann [http://localhost:4800](http://localhost:4800) öffnen, Namen eintippen, **
 
 **5. Was es kostet**
 
-Die Figuren laufen auf Claude Haiku 5.5. Eine Partie braucht 40 bis 80 Aufrufe und kostet **etwa 2 bis 4 Cent**. Eingebaut ist ein **Tagesdeckel von 0,50 $**: Ist er erreicht, verstummen die Figuren bis zum nächsten Tag, und der Browser sagt dir das. Den Deckel änderst du in `spiel/kosten.mjs` (`DECKEL_PRO_TAG`), das Modell in `spiel/claude.mjs` (`MODELL`). Verbrauch nachsehen: `~/.local/share/nachsitzen/kosten.json`.
+Die Figuren laufen auf Claude Haiku 5.5. Eine Partie braucht 40 bis 80 Aufrufe und kostet **etwa 2 bis 4 Cent**. Eingebaut ist ein **Tagesdeckel von 0,50 $**: Ist er erreicht, verstummen die Figuren bis zum nächsten Tag, und der Browser sagt dir das. Den Deckel setzt du per Umgebungsvariable, z. B. `NACHSITZEN_DECKEL=1.00 npm start` (Dollar, Zahl > 0; sonst gilt der Standard und es gibt eine Warnung), das Modell änderst du in `spiel/claude.mjs` (`MODELL`). Verbrauch nachsehen: `npm run kosten` (Tabelle der letzten 14 Tage; die Zahlen liegen in `kosten.json` im Datenordner: `~/.local/share/nachsitzen`, unter Windows `%LOCALAPPDATA%\nachsitzen`).
 
 **Wenn etwas nicht geht**
 
