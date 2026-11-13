@@ -22,6 +22,37 @@ export function satzende(text, max) {
   return ende > max / 3 ? kurz.slice(0, ende + 1) : kurz
 }
 
+// --- Waechter fuer das, was eine Figur laut sagt ---------------------------------------------
+// Zusaetzlich zu den Grenzen im Systemprompt, nicht stattdessen: kostet keinen zweiten Aufruf,
+// solange die Antwort in Ordnung ist.
+
+const META_WOERTER = /(?<![\p{L}\p{N}])(KI|AI|Sprachmodell|Prompt|Claude|Anthropic|Werkzeug|Spielleiter)(?![\p{L}\p{N}])/u
+const SATZENDE = /[.!?…]+["“”«»‘’')\]]*(?=\s|$)/g
+export const NACHFRAGE = 'Bleib in der Rolle, höchstens zwei Sätze, nichts wiederholen.'
+
+// Auf die ersten `max` Saetze kuerzen. Ein Punkt nach einer Zahl ("in der 2. Nacht") zaehlt nicht als Satzende.
+export function ersteSaetze(text, max = 2) {
+  let n = 0
+  for (const m of text.matchAll(SATZENDE)) {
+    if (m[0][0] === '.' && !m[0].startsWith('..') && /\d/.test(text[m.index - 1] ?? '')) continue
+    if (++n === max) return text.slice(0, m.index + m[0].length)
+  }
+  return text
+}
+
+const glatt = (t) => String(t ?? '').replace(/\s+/g, ' ').trim()
+
+// Prueft eine Aeusserung: (a) hoechstens zwei Saetze, (b) kein Wort ueber Modelle, Prompts oder das Spiel
+// von aussen, (c) nicht woertlich dasselbe wie die letzte eigene Aeusserung.
+// Ergebnis: { ok: true, text } (gekuerzt) oder { ok: false, grund }.
+export function pruefeSprechen(text, { eigeneLetzte = null } = {}) {
+  const kurz = ersteSaetze(glatt(text), 2)
+  if (!kurz) return { ok: false, grund: 'leerer Text' }
+  if (META_WOERTER.test(kurz)) return { ok: false, grund: 'Rollenbruch (Meta-Wort)' }
+  if (eigeneLetzte && glatt(eigeneLetzte) === kurz) return { ok: false, grund: 'wörtliche Wiederholung' }
+  return { ok: true, text: kurz }
+}
+
 export function ladeFigur(name) {
   return JSON.parse(fs.readFileSync(path.join(HIER, '..', 'figuren', `${name.toLowerCase()}.json`), 'utf8'))
 }
@@ -123,26 +154,37 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
     const andere = phase === 'nacht' && extra.ziele ? extra.ziele : lebende.filter((n) => n !== name)
     const tools = werkzeuge(phase, rolle, andere, { verwischen: !!extra.verwischen })
     const nachricht = `Was du bisher mitbekommen hast:\n${verlaufAlsText(sicht, name)}\n\nNoch im Raum: ${lebende.join(', ')}.\n${AUFGABE[phase]}`
-    let erg
-    try { erg = await anfrage({ system, nachricht, tools }) } catch (f) { erg = { werkzeug: null, grund: f.message } }
     const verwerfe = (grund) => { log(`${name}: ${grund}, Rückfall`); return rueckfall(phase, andere) }
-    const w = erg.werkzeug
-    if (!w || !tools.some((t) => t.name === w.name)) return verwerfe(w ? `Werkzeug ${w.name} nicht erlaubt in ${phase}` : (erg.grund || 'kein Werkzeug'))
-    const e = w.eingabe
-    switch (w.name) {
-      case 'sprechen': {
-        const text = satzende(String(e.text || '').trim(), 400)
-        if (!text) return phase === 'diskussion' ? { art: 'schweigt' } : verwerfe('leerer Text')
-        return { art: 'sagt', text, an: andere.includes(e.an) ? e.an : null, behauptet: ORT_NAMEN.includes(e.behauptetPlatz) ? e.behauptetPlatz : behauptungAus(text) }
+    const eigeneLetzte = sicht.findLast((x) => x.art === 'sagt' && x.von === name)?.text ?? null
+    // Hoechstens zwei Anfragen: die zweite nur, wenn der Waechter die erste Aeusserung verwirft.
+    for (let versuch = 1; ; versuch++) {
+      let erg
+      try { erg = await anfrage({ system, nachricht: versuch === 1 ? nachricht : `${nachricht}\n\n${NACHFRAGE}`, tools }) } catch (f) { erg = { werkzeug: null, grund: f.message } }
+      const w = erg.werkzeug
+      if (!w || !tools.some((t) => t.name === w.name)) return verwerfe(w ? `Werkzeug ${w.name} nicht erlaubt in ${phase}` : (erg.grund || 'kein Werkzeug'))
+      const e = w.eingabe ?? {}
+      switch (w.name) {
+        case 'sprechen': {
+          const roh = String(e.text || '').trim()
+          if (!roh) return phase === 'diskussion' ? { art: 'schweigt' } : verwerfe('leerer Text')
+          const pruefung = pruefeSprechen(roh, { eigeneLetzte })
+          if (!pruefung.ok) {
+            if (versuch >= 2) return verwerfe(pruefung.grund)
+            log(`${name}: ${pruefung.grund}, frage noch einmal`)
+            continue
+          }
+          const text = satzende(pruefung.text, 400)
+          return { art: 'sagt', text, an: andere.includes(e.an) ? e.an : null, behauptet: ORT_NAMEN.includes(e.behauptetPlatz) ? e.behauptetPlatz : behauptungAus(text) }
+        }
+        case 'schweigen': return { art: 'schweigt' }
+        case 'verstecken': return ORT_NAMEN.includes(e.platz) ? { platz: e.platz } : verwerfe(`Platz ${e.platz} ungültig`)
+        case 'holen':
+        case 'pruefen':
+          if (!ORT_NAMEN.includes(e.platz)) return verwerfe(`Platz ${e.platz} ungültig`)
+          return andere.includes(e.ziel) ? { platz: e.platz, ziel: e.ziel, verwischen: w.name === 'holen' && e.verwischen === true } : verwerfe(`Ziel ${e.ziel} ungültig`)
+        case 'abstimmen': return { art: 'stimme', fuer: andere.includes(e.fuer) ? e.fuer : null }
+        default: return verwerfe('unbekanntes Werkzeug')
       }
-      case 'schweigen': return { art: 'schweigt' }
-      case 'verstecken': return ORT_NAMEN.includes(e.platz) ? { platz: e.platz } : verwerfe(`Platz ${e.platz} ungültig`)
-      case 'holen':
-      case 'pruefen':
-        if (!ORT_NAMEN.includes(e.platz)) return verwerfe(`Platz ${e.platz} ungültig`)
-        return andere.includes(e.ziel) ? { platz: e.platz, ziel: e.ziel, verwischen: w.name === 'holen' && e.verwischen === true } : verwerfe(`Ziel ${e.ziel} ungültig`)
-      case 'abstimmen': return { art: 'stimme', fuer: andere.includes(e.fuer) ? e.fuer : null }
-      default: return verwerfe('unbekanntes Werkzeug')
     }
   }
 
