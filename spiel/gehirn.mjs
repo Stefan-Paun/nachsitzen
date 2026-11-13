@@ -26,16 +26,31 @@ export function satzende(text, max) {
 // Zusaetzlich zu den Grenzen im Systemprompt, nicht stattdessen: kostet keinen zweiten Aufruf,
 // solange die Antwort in Ordnung ist.
 
-const META_WOERTER = /(?<![\p{L}\p{N}])(KI|AI|Sprachmodell|Prompt|Claude|Anthropic|Werkzeug|Spielleiter)(?![\p{L}\p{N}])/u
+const META_WOERTER = /(?<![\p{L}\p{N}])(KIs?|AIs?|Sprachmodell(?:e|en|s)?|Prompts?|Claude|Anthropic|Werkzeug(?:e|en|s)?|Spielleiter(?:s|in)?)(?![\p{L}\p{N}])/u
 const SATZENDE = /[.!?…]+["“”«»‘’')\]]*(?=\s|$)/g
 export const NACHFRAGE = 'Bleib in der Rolle, höchstens zwei Sätze, nichts wiederholen.'
 
-// Auf die ersten `max` Saetze kuerzen. Ein Punkt nach einer Zahl ("in der 2. Nacht") zaehlt nicht als Satzende.
+const ABKUERZUNGEN = new Set(['ca', 'evtl', 'bzw', 'usw', 'vgl', 'ggf', 'bzgl', 'inkl', 'etc', 'Dr', 'Prof', 'Nr', 'Hr', 'Fr', 'St'])
+const ORDNUNGSWORT = /^(Nacht|Tag|Stock|Klasse|Runde|Stunde|Mal|Reihe|Platz|Pult)/
+const istGross = (z) => !!z && z !== z.toLowerCase()
+
+// Auf die ersten `max` Saetze kuerzen. Nicht als Satzende zaehlen: Abkuerzungen ("z. B.", "ca."),
+// Ordnungszahlen ("in der 2. Nacht") und Auslassungspunkte, nach denen es klein weitergeht ("also… das passt nicht").
 export function ersteSaetze(text, max = 2) {
   let n = 0
   for (const m of text.matchAll(SATZENDE)) {
-    if (m[0][0] === '.' && !m[0].startsWith('..') && /\d/.test(text[m.index - 1] ?? '')) continue
-    if (++n === max) return text.slice(0, m.index + m[0].length)
+    const ende = m.index + m[0].length
+    const danach = text.slice(ende).replace(/^[\s"„“”«»‘’'(]+/, '')
+    if (danach) {
+      const pause = m[0][0] === '…' || m[0].startsWith('..')
+      if (pause && !istGross(danach[0])) continue
+      if (!pause && m[0][0] === '.') {
+        const wort = text.slice(0, m.index).match(/[\p{L}\p{N}]+$/u)?.[0] ?? ''
+        if (/^\p{L}$/u.test(wort) || ABKUERZUNGEN.has(wort)) continue
+        if (/^\d{1,2}$/.test(wort) && (!istGross(danach[0]) || ORDNUNGSWORT.test(danach))) continue
+      }
+    }
+    if (++n === max) return text.slice(0, ende)
   }
   return text
 }
@@ -174,7 +189,9 @@ export function claudeGehirn(figur, rolle, { anfrage, mitspieler, spieler = null
             continue
           }
           const text = satzende(pruefung.text, 400)
-          return { art: 'sagt', text, an: andere.includes(e.an) ? e.an : null, behauptet: ORT_NAMEN.includes(e.behauptetPlatz) ? e.behauptetPlatz : behauptungAus(text) }
+          // Steht der behauptete Platz nur in einem weggekuerzten Satz, hat ihn niemand gehoert
+          const gehoert = ORT_NAMEN.includes(e.behauptetPlatz) && (text === glatt(roh) || text.toLowerCase().includes(e.behauptetPlatz.toLowerCase()))
+          return { art: 'sagt', text, an: andere.includes(e.an) ? e.an : null, behauptet: gehoert ? e.behauptetPlatz : behauptungAus(text) }
         }
         case 'schweigen': return { art: 'schweigt' }
         case 'verstecken': return ORT_NAMEN.includes(e.platz) ? { platz: e.platz } : verwerfe(`Platz ${e.platz} ungültig`)

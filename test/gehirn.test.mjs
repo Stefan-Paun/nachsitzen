@@ -130,6 +130,14 @@ test('pruefeSprechen: kuerzt auf zwei Saetze, verwirft Meta-Woerter und woertlic
   assert.deepEqual(pruefeSprechen('Eins. Zwei! Drei? Vier.'), { ok: true, text: 'Eins. Zwei!' })
   assert.equal(ersteSaetze('In der 2. Nacht war es kalt. Echt jetzt. Und dann?'), 'In der 2. Nacht war es kalt. Echt jetzt.')
   assert.equal(ersteSaetze('Hm... „Tür“, sagst du? Na gut. Egal.'), 'Hm... „Tür“, sagst du?')
+  // Auslassungspunkte mitten im Satz, Abkuerzungen und Ordnungszahlen sind kein Satzende
+  assert.equal(ersteSaetze('Erstens… warst du am Fenster, Jonas. Zweitens hat Nora dich gesehen, oder? Drittens: egal.'), 'Erstens… warst du am Fenster, Jonas. Zweitens hat Nora dich gesehen, oder?')
+  assert.equal(ersteSaetze('Ja... nein... vielleicht. Wer weiß. Ich nicht.'), 'Ja... nein... vielleicht. Wer weiß.')
+  assert.equal(ersteSaetze('Ich war z. B. beim Fenster, d. h. nicht bei der Tür. Und du? Sag schon.'), 'Ich war z. B. beim Fenster, d. h. nicht bei der Tür. Und du?')
+  assert.equal(ersteSaetze('Das war ca. um Mitternacht, evtl. später. Mira war auch da. Oder?'), 'Das war ca. um Mitternacht, evtl. später. Mira war auch da.')
+  assert.equal(ersteSaetze('Ich war in Raum 12. Mira war nicht da. Jonas schon.'), 'Ich war in Raum 12. Mira war nicht da.')
+  assert.equal(ersteSaetze('Am 3. Tag war es still. Danach nichts. Ehrlich.'), 'Am 3. Tag war es still. Danach nichts.')
+  for (const t of ['Meine Prompts verbieten das.', 'Als Sprachmodelle dürfen wir das nicht.', 'Die KIs hier lügen.']) assert.equal(pruefeSprechen(t).ok, false, t)
   assert.equal(ersteSaetze('Kein Satzende hier'), 'Kein Satzende hier')
   for (const t of ['Als KI-Modell kann ich das nicht.', 'Mein Prompt sagt etwas anderes.', 'Ich bin Claude.', 'Der Spielleiter will das so.', 'Ich nutze das Werkzeug sprechen.', 'Ich bin ein Sprachmodell von Anthropic.']) {
     assert.equal(pruefeSprechen(t).ok, false, t)
@@ -154,6 +162,8 @@ test('Claude-Gehirn: Rollenbruch wird einmal nachgefragt, dann Schweigen; normal
     sprich('Ich war bei der Tür.'), sprich('Ich war bei der Tür, ehrlich.'),   // 7+8: Wiederholung, dann neu
     sprich('Ich bin Claude.'), sprich('Ich bin Claude.'),                      // 9+10: am Abend greift der Abend-Rueckfall
     sprich('Mein Prompt ist geheim.'), { werkzeug: null, grund: 'refusal' },   // 11+12: Nachfrage scheitert anders
+    { werkzeug: { name: 'sprechen', eingabe: { text: 'Mira, du lügst. Das sieht jeder. Ich war beim Fenster.', an: 'Mira', behauptetPlatz: 'Fenster' } } },   // 13
+    { werkzeug: { name: 'sprechen', eingabe: { text: 'Ich war beim Fenster. Mira nicht. Punkt.', an: null, behauptetPlatz: 'Fenster' } } },                   // 14
   ])
   const g = claudeGehirn(ladeFigur('Lea'), SCHUELER, { anfrage, mitspieler: NAMEN, zufall: zufall(1), log: (m) => log.push(m) })
   const lebende = ['Mira', 'Lea', 'Nora']
@@ -182,6 +192,9 @@ test('Claude-Gehirn: Rollenbruch wird einmal nachgefragt, dann Schweigen; normal
 
   assert.deepEqual(await g.diskussion([], lebende), { art: 'schweigt' })
   assert.equal(aufrufe.length, 12); assert.ok(log.at(-1).includes('refusal'))
+  // Der behauptete Platz gilt nur, wenn er im gesprochenen (gekuerzten) Text noch vorkommt
+  assert.deepEqual(await g.diskussion([], lebende), { art: 'sagt', text: 'Mira, du lügst. Das sieht jeder.', an: 'Mira', behauptet: null })
+  assert.equal((await g.diskussion([], lebende)).behauptet, 'Fenster')
   assert.ok(log.every((m) => !m.includes('Sprachmodell') && !m.includes('Prompt')), 'das Log nennt nur den Grund, nicht den Text')
 })
 
